@@ -1,0 +1,138 @@
+.sidebar {
+    background-color: #373B47;
+    color: white;
+    height: 100vh;
+    position: fixed;
+    width: 250px;
+}
+
+.main-content {
+    margin-left: 250px;
+    padding: 20px;
+}
+
+.nav-link {
+    color: #ffffff80;
+    padding: 8px 16px;
+    margin: 4px 0;
+}
+
+.nav-link:hover {
+    color: white;
+}
+
+.nav-link.active {
+    color: white !important;
+    background-color: transparent !important;
+}
+
+.user-management-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    padding: 24px;
+    margin-top: 24px;
+}
+
+.add-user-btn {
+    background-color: #373B47;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+}
+
+.table th {
+    color: #6c757d;
+    font-weight: normal;
+    border-bottom-width: 1px;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.subtitle {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.status-active {
+    color: #198754;
+    background-color: #19875420;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.status-inactive {
+    color: #dc3545;
+    background-color: #dc354520;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.user-form {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    padding: 24px;
+    margin-top: 24px;
+}
+
+.user-form form {
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.user-form .form-label {
+    font-weight: bold;
+}
+
+.user-form .form-control {
+    margin-bottom: 15px;
+}
+
+.user-form button[type="submit"] {
+    width: 100%;
+    background-color: #373B47;
+    border-color: #373B47;
+}
+
+.btn-primary {
+    background-color: #373B47;
+    border-color: #373B47;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background-color: #828aa3;
+    border-color: #828aa3;
+    cursor: pointer;
+}
+
+.nav-tabs .nav-link {
+    color: #373B47;
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-tabs .nav-link.active {
+    color: #373B47;
+    border-bottom: 2px solid #373B47;
+}
+.btn-link {
+    text-decoration: none;
+    font-weight: bold;
+    color: #373B47;
+
+
+}
