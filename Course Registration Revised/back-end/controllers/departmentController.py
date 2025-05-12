@@ -35,7 +35,7 @@ async def get_department(department_id: str):
     # if user["role"] != "admin":
     #     raise HTTPException(status_code=403, detail="Unauthorized access")
     
-    department = await departments_collection.find_one(department_id)
+    department = await departments_collection.find_one({"department_id": department_id})
     
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -44,7 +44,7 @@ async def get_department(department_id: str):
 
 #Update Department
 @router.put("/departments/{department_id}")
-async def update_department(department_id: str, updated_data = dict):
+async def update_department(department_id: str, updated_data: dict):
     # if user["role"] != "admin":
     #     raise HTTPException(status_code=403, detail="Unauthorized access")
     
@@ -64,7 +64,7 @@ async def delete_department(department_id: str):
     # if user["role"] != "admin":
     #     raise HTTPException(status_code=403, detail="Unauthorized access")
     
-    department = departments_collection.find_one({"department_id": department_id})
+    department = await departments_collection.find_one({"department_id": department_id})
     
     if not department:
         raise HTTPException(status_code=404, detail="Department not found")
