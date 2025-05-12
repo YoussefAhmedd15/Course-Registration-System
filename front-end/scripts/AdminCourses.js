@@ -365,4 +365,52 @@ document.getElementById("editForm").addEventListener("submit", async (event) => 
   }
 
   try {
-    const response = await fetch(`
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(courseData),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || "Failed to update course")
+    }
+
+    alert("Course updated successfully!")
+    const modal = bootstrap.Modal.getInstance(document.getElementById("editModal"))
+    if (modal) {
+      modal.hide()
+    }
+    document.getElementById("editForm").reset()
+    loadCourses()
+  } catch (error) {
+    console.error("Error updating course:", error)
+    alert(error.message || "Error updating course. Please try again.")
+  }
+})
+
+// Delete a course
+async function deleteCourse(courseId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
+      method: "DELETE"
+    })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || "Failed to delete course")
+    }
+    alert("Course deleted successfully!")
+    loadCourses()
+  } catch (error) {
+    console.error("Error deleting course:", error)
+    alert(error.message || "Error deleting course. Please try again.")
+  }
+}
+
+// Initial page load
+window.addEventListener("DOMContentLoaded", () => {
+  checkAuth()
+  loadDepartments()
+  loadCoursesForPrerequisites()
+  loadCourses()
+})
