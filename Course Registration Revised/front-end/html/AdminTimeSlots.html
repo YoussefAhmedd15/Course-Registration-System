@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Slots Management - Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/front-end/styles/AdminTimeSlots.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar p-4">
+        <h3 class="mb-4">SISadmin</h3>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a class="nav-link" href="#">Dashboard</a></li>
+            <li class="nav-item"><a class="nav-link" href="AdminCourses.html">Courses</a></li>
+            <li class="nav-item"><a class="nav-link" href="AdminUsers.html">Users</a></li>
+            <li class="nav-item"><a class="nav-link" href="AdminRooms.html">Rooms</a></li>
+            <li class="nav-item"><a class="nav-link active" href="AdminTimeSlots.html">Time Slots</a></li>
+            <li class="nav-item"><a class="nav-link" href="AdminCourseTree.html">Course Tree</a></li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="d-flex justify-content-between align-items-center">
+            <h4>Admin Dashboard</h4>
+        </div>
+
+        <!-- Time Slots Section -->
+        <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Time Slots</h5>
+                <button class="add-slot-btn" data-bs-toggle="modal" data-bs-target="#timeSlotModal">
+                    <span class="me-2">+</span>Add Time Slot
+                </button>
+            </div>
+
+            <!-- Add/Edit Time Slot Modal -->
+            <div class="modal fade" id="timeSlotModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Add/Edit Time Slot</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="timeSlotForm">
+                                <div class="mb-3">
+                                    <label for="room" class="form-label">Room</label>
+                                    <select class="form-control" id="room" required>
+                                        <option value="">Select Room</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="course" class="form-label">Course</label>
+                                    <select class="form-control" id="course">
+                                        <option value="">Select Course</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="slot_type" class="form-label">Slot Type</label>
+                                    <select class="form-control" id="slot_type" required>
+                                        <option value="Lecture">Lecture</option>
+                                        <option value="Lab">Lab</option>
+                                        <option value="Tutorial">Tutorial</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="day" class="form-label">Day</label>
+                                    <select class="form-control" id="day" required>
+                                        <option value="sunday">Sunday</option>
+                                        <option value="monday">Monday</option>
+                                        <option value="tuesday">Tuesday</option>
+                                        <option value="wednesday">Wednesday</option>
+                                        <option value="thursday">Thursday</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="start_time" class="form-label">Start Time</label>
+                                    <input type="time" class="form-control" id="start_time" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="end_time" class="form-label">End Time</label>
+                                    <input type="time" class="form-control" id="end_time" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="instructor" class="form-label">Instructor</label>
+                                    <select class="form-control" id="instructor">
+                                        <option value="">Select Instructor</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100">Save</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Slots Management Card -->
+            <div class="time-slot-management-card">
+                <h5>Time Slot Management</h5>
+                <p class="subtitle mb-4">Manage available time slots for scheduling.</p>
+
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Room</th>
+                                <th>Slot Type</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="timeSlotTableBody">
+                            <!-- Time Slots will be dynamically populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/front-end/scripts/AdminTimeSlots.js"></script>
+</body>
+</html>
