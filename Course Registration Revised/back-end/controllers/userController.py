@@ -12,6 +12,8 @@ router = APIRouter()
 async def create_user(user: Student | Instructor | Admin):
     if isinstance(user, Student):
         role = "student"
+        if not hasattr(user, 'major') or not user.major:
+            raise HTTPException(status_code=400, detail="Major is required for students")
     elif isinstance(user, Instructor):
         role = "instructor"
         
@@ -77,6 +79,9 @@ async def update_user(user_id: str, updated_data: UpdateUserModel = Body(...)):
         if not department:
             raise HTTPException(status_code=400, detail="Invalid department ID. Please select a valid department")
     
+    if "major" in update_fields and not update_fields["major"]:
+        raise HTTPException(status_code=400, detail="Major cannot be empty for students")
+    
     result = await users_collection.update_one(
         {"$or":[
             {"student_id": user_id},
@@ -105,3 +110,21 @@ async def delete_user(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     
     return {"message": "User deleted successfully"}
+
+# Delete all users
+@router.delete("/users/")
+async def delete_all_users(user: dict = Depends(get_current_user)):
+    """Delete all users from the system. Only accessible by admin users."""
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can delete all users")
+    
+    # Delete all users
+    result = await users_collection.delete_many({})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="No users found to delete")
+    
+    return {
+        "message": f"Successfully deleted {result.deleted_count} users",
+        "deleted_count": result.deleted_count
+    }

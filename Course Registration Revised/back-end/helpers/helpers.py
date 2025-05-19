@@ -2,12 +2,13 @@ from database import users_collection, courses_collection, departments_collectio
 from datetime import datetime
 
 async def get_next_id(user_type: str):
-    """Generates a unique ID based on user type(Student, Instructor, Admin)"""
+    """Generates a unique ID based on user type(Student, Instructor, Admin, Major)"""
     print(user_type)
     prefix_mapping = {
         "student": "23010",
         "instructor": "INST-",
-        "admin": "ADMIN-"
+        "admin": "ADMIN-",
+        "major": "MAJ-"
     }
     
     prefix = prefix_mapping[user_type]

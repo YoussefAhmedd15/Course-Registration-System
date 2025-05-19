@@ -4,7 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schedule</title>
-    <link rel="stylesheet" href="/front-end/styles/Schedule.css">
+    <link rel="stylesheet" href="../styles/Schedule.css">
+    <!-- Debug Script -->
+    <script>
+        console.log('Debug - Schedule page loaded');
+        console.log('localStorage check on page load:');
+        console.log('token:', !!localStorage.getItem('token'));
+        console.log('userId:', localStorage.getItem('userId'));
+        console.log('userRole:', localStorage.getItem('userRole'));
+        console.log('All localStorage keys:', Object.keys(localStorage));
+        
+        // Check if we should be here
+        const debugToken = localStorage.getItem('token');
+        const userRole = localStorage.getItem('userRole');
+        if (!debugToken) {
+            console.error('No token found, redirecting to login');
+            window.location.href = 'Login.html';
+        } else if (userRole !== 'student') {
+            console.error('User is not a student, role found:', userRole);
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -13,9 +32,14 @@
             <h1 class="logo">studentIS</h1>
             <nav>
                 <ul>
-                    <li><a href="#">HomePage</a></li>
-                    <li><a href="StudentRegistration.html">Course Registration</a></li>
-                    <li><a href="#" class="active">Schedule</a></li>
+                    <li><a href="StudentDashboard.html"><i class="bi bi-house-door-fill"></i> Dashboard</a></li>
+                    <li><a href="StudentRegistration.html"><i class="bi bi-journal-plus"></i> Course Registration</a></li>
+                    <li><a href="Schedule.html" class="active"><i class="bi bi-calendar-week"></i> Schedule</a></li>
+                    <li>
+                        <a class="logout-link" href="#" id="logoutBtn">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -292,6 +316,7 @@
         </main>
     </div>
 
-    <script src="/front-end/scripts/schedule.js"></script>
+    <script src="../scripts/schedule.js"></script>
+  <script src="../scripts/sweetalert-config.js"></script>
 </body>
 </html>

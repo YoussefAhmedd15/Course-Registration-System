@@ -35,6 +35,7 @@ document.getElementById("loginForm").addEventListener("submit", async function(e
     formData.append("password", password);
 
     try {
+        console.log("Attempting login for:", email);
         const response = await fetch(`http://127.0.0.1:8000/api/auth/login`, {
             method: "POST",
             headers: {"Content-Type": "application/x-www-form-urlencoded"},
@@ -46,9 +47,14 @@ document.getElementById("loginForm").addEventListener("submit", async function(e
         }
 
         const data = await response.json();
+        console.log("Login successful, received token");
         
-        // Store the token securely
-        localStorage.setItem("access_token", data.access_token);
+        // Clear any existing localStorage items to prevent naming confusion
+        localStorage.clear();
+        
+        // Store the tokens securely - use "token" and "userId" to match what the rest of the app expects
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("refreshToken", data.refresh_token);
         
         // Parse the token to get user information
         const tokenParts = data.access_token.split(".");
@@ -57,25 +63,38 @@ document.getElementById("loginForm").addEventListener("submit", async function(e
         }
         
         try {
+            console.log("Parsing token payload");
             const payload = JSON.parse(atob(tokenParts[1]));
+            console.log("Token payload:", payload);
+            
             const role = payload.role;
             const userId = payload.user_id;
             
-            // Store user info for session
-            localStorage.setItem("user_role", role);
-            localStorage.setItem("user_id", userId);
-            localStorage.setItem("user_email", payload.sub);
+            // Store user info for session - use the keys expected by other parts of the app
+            localStorage.setItem("userRole", role);
+            localStorage.setItem("userId", userId);
+            localStorage.setItem("userEmail", payload.sub);
+            localStorage.setItem("userName", payload.name || "");
             
-            // Redirect based on role
-            if(role === "admin") {
-                window.location.href = "/front-end/html/AdminCourses.html";
-            } else if(role === "instructor") {
-                window.location.href = "/front-end/html/InstructorDashboard.html";
-            } else if(role === "student") {
-                window.location.href = "/front-end/html/StudentRegistration.html";
-            } else {
-                throw new Error("Unknown user role. Please contact support.");
-            }
+            console.log("Login successful, stored token and user data");
+            console.log("userRole:", role);
+            console.log("userId:", userId);
+            console.log("localStorage keys:", Object.keys(localStorage));
+            
+            // Add a small delay to make sure localStorage is updated
+            setTimeout(() => {
+                // Redirect based on role
+                console.log("Redirecting to dashboard based on role:", role);
+                if(role === "admin") {
+                    window.location.href = "AdminDashboard.html";
+                } else if(role === "instructor") {
+                    window.location.href = "InstructorDashboard.html";
+                } else if(role === "student") {
+                    window.location.href = "StudentDashboard.html";
+                } else {
+                    throw new Error("Unknown user role. Please contact support.");
+                }
+            }, 100);
         } catch (parseError) {
             console.error("Token parsing error:", parseError);
             throw new Error("Error processing authentication. Please try again.");
@@ -93,7 +112,7 @@ document.getElementById("loginForm").addEventListener("submit", async function(e
 
 // Check if token exists and is valid on page load
 document.addEventListener('DOMContentLoaded', function() {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem("token"); // Changed from access_token to token
     
     if (token) {
         try {
@@ -106,25 +125,72 @@ document.addEventListener('DOMContentLoaded', function() {
                 const role = payload.role;
                 
                 if(role === "admin") {
-                    window.location.href = "/front-end/html/AdminCourses.html";
+                    window.location.href = "AdminDashboard.html";
                 } else if(role === "instructor") {
-                    window.location.href = "/front-end/html/InstructorDashboard.html";
+                    window.location.href = "InstructorDashboard.html";
                 } else if(role === "student") {
-                    window.location.href = "/front-end/html/StudentRegistration.html";
+                    window.location.href = "StudentDashboard.html";
                 }
             } else {
-                // Token expired, remove it
-                localStorage.removeItem("access_token");
-                localStorage.removeItem("user_role");
-                localStorage.removeItem("user_id");
-                localStorage.removeItem("user_email");
+                // Token expired, try to refresh
+                const refreshToken = localStorage.getItem("refreshToken"); // Changed from refresh_token
+                if (refreshToken) {
+                    refreshAccessToken(refreshToken);
+                } else {
+                    // No refresh token, clear storage and stay on login page
+                    clearAuthStorage();
+                }
             }
         } catch (e) {
-            // Invalid token format, remove it
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("user_role");
-            localStorage.removeItem("user_id");
-            localStorage.removeItem("user_email");
+            // Invalid token format, clear storage
+            console.error("Token validation error:", e);
+            clearAuthStorage();
         }
     }
 });
+
+// Function to refresh access token
+async function refreshAccessToken(refreshToken) {
+    try {
+        const response = await fetch('http://127.0.0.1:8000/api/auth/refresh', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refresh_token: refreshToken })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem("token", data.access_token); // Changed from access_token to token
+            localStorage.setItem("refreshToken", data.refresh_token); // Changed from refresh_token to refreshToken
+            
+            // Redirect to appropriate dashboard
+            const payload = JSON.parse(atob(data.access_token.split(".")[1]));
+            const role = payload.role;
+            
+            if(role === "admin") {
+                window.location.href = "AdminDashboard.html";
+            } else if(role === "instructor") {
+                window.location.href = "InstructorDashboard.html";
+            } else if(role === "student") {
+                window.location.href = "StudentDashboard.html";
+            }
+        } else {
+            clearAuthStorage();
+        }
+    } catch (error) {
+        console.error("Token refresh error:", error);
+        clearAuthStorage();
+    }
+}
+
+// Function to clear authentication storage
+function clearAuthStorage() {
+    localStorage.removeItem("token"); // Changed from access_token to token
+    localStorage.removeItem("refreshToken"); // Changed from refresh_token to refreshToken
+    localStorage.removeItem("userRole"); // Changed from user_role to userRole
+    localStorage.removeItem("userId"); // Changed from user_id to userId
+    localStorage.removeItem("userEmail"); // Changed from user_email to userEmail
+    localStorage.removeItem("userName"); // Changed from user_name to userName
+}

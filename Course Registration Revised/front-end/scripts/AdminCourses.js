@@ -1,5 +1,35 @@
 const API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 
+// Check if user is logged in and is an admin
+function checkAuth() {
+  const token = localStorage.getItem('token');
+  const userRole = localStorage.getItem('userRole');
+  
+  if (!token || userRole !== 'admin') {
+    clearAuthStorage();
+    window.location.href = 'Login.html';
+    return false;
+  }
+  return true;
+}
+
+// Function to clear authentication storage
+function clearAuthStorage() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('userName');
+}
+
+// Function to handle logout
+function logout() {
+  console.log('Logging out admin user...');
+  localStorage.clear(); // Clear all localStorage items
+  window.location.href = 'Login.html';
+}
+
 // Fetch departments and populate dropdowns
 async function loadDepartments() {
   try {
@@ -202,29 +232,54 @@ async function openEditModal(courseId) {
 document.getElementById("courseForm").addEventListener("submit", async (event) => {
   event.preventDefault()
 
-  const courseData = {
-    name: document.getElementById("courseTitle").value.trim(),
-    description: document.getElementById("courseDescription").value.trim(),
-    credit_hours: Number.parseInt(document.getElementById("creditHours").value),
-    department_id: document.getElementById("department").value,
-    level: Number.parseInt(document.getElementById("level").value),
-    semesters: getSelectedSemesters(""),
-    prerequisites: getSelectedPrerequisites("prerequisitesSelect"),
+  // Validate required fields
+  const name = document.getElementById("courseTitle").value.trim()
+  const description = document.getElementById("courseDescription").value.trim()
+  const creditHours = Number.parseInt(document.getElementById("creditHours").value)
+  const departmentId = document.getElementById("department").value
+  const level = Number.parseInt(document.getElementById("level").value)
+  const semesters = getSelectedSemesters("")
+  const prerequisites = getSelectedPrerequisites("prerequisitesSelect")
+
+  // Validation
+  if (!name || name.length < 3 || name.length > 100) {
+    alert("Course name must be between 3 and 100 characters")
+    return
   }
 
-  if (!courseData.department_id) {
+  if (!description || description.length < 10 || description.length > 500) {
+    alert("Course description must be between 10 and 500 characters")
+    return
+  }
+
+  if (!creditHours || creditHours < 1 || creditHours > 4) {
+    alert("Credit hours must be between 1 and 4")
+    return
+  }
+
+  if (!departmentId) {
     alert("Please select a department")
     return
   }
 
-  if (!courseData.level) {
-    alert("Please select a level")
+  if (!level || level < 1 || level > 4) {
+    alert("Level must be between 1 and 4")
     return
   }
 
-  if (courseData.semesters.length === 0) {
+  if (semesters.length === 0) {
     alert("Please select at least one semester")
     return
+  }
+
+  const courseData = {
+    name,
+    description,
+    credit_hours: creditHours,
+    department_id: departmentId,
+    level,
+    semesters,
+    prerequisites
   }
 
   try {
@@ -259,35 +314,54 @@ document.getElementById("editForm").addEventListener("submit", async (event) => 
   // Get the course ID from the data attribute on the form element
   const courseId = document.getElementById("editForm").getAttribute("data-course-id")
 
-  const courseData = {
-    name: document.getElementById("edit_courseTitle").value.trim(),
-    description: document.getElementById("edit_courseDescription").value.trim(),
-    credit_hours: Number.parseInt(document.getElementById("edit_creditHours").value),
-    department_id: document.getElementById("edit_department").value,
-    level: Number.parseInt(document.getElementById("edit_level").value),
-    semesters: getSelectedSemesters("edit_"),
-    prerequisites: getSelectedPrerequisites("edit_prerequisitesSelect"),
-  }
+  // Validate required fields
+  const name = document.getElementById("edit_courseTitle").value.trim()
+  const description = document.getElementById("edit_courseDescription").value.trim()
+  const creditHours = Number.parseInt(document.getElementById("edit_creditHours").value)
+  const departmentId = document.getElementById("edit_department").value
+  const level = Number.parseInt(document.getElementById("edit_level").value)
+  const semesters = getSelectedSemesters("edit_")
+  const prerequisites = getSelectedPrerequisites("edit_prerequisitesSelect")
 
-  // Add validation
-  if (courseData.description.length < 10) {
-    alert("Description must be at least 10 characters long")
+  // Validation
+  if (!name || name.length < 3 || name.length > 100) {
+    alert("Course name must be between 3 and 100 characters")
     return
   }
 
-  if (!courseData.department_id) {
+  if (!description || description.length < 10 || description.length > 500) {
+    alert("Course description must be between 10 and 500 characters")
+    return
+  }
+
+  if (!creditHours || creditHours < 1 || creditHours > 4) {
+    alert("Credit hours must be between 1 and 4")
+    return
+  }
+
+  if (!departmentId) {
     alert("Please select a department")
     return
   }
 
-  if (!courseData.level) {
-    alert("Please select a level")
+  if (!level || level < 1 || level > 4) {
+    alert("Level must be between 1 and 4")
     return
   }
 
-  if (courseData.semesters.length === 0) {
+  if (semesters.length === 0) {
     alert("Please select at least one semester")
     return
+  }
+
+  const courseData = {
+    name,
+    description,
+    credit_hours: creditHours,
+    department_id: departmentId,
+    level,
+    semesters,
+    prerequisites
   }
 
   try {
@@ -298,24 +372,16 @@ document.getElementById("editForm").addEventListener("submit", async (event) => 
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      console.log("Server error response:", errorData)
-
-      // Better error handling for validation errors
-      if (errorData.detail && Array.isArray(errorData.detail)) {
-        const errorMessages = errorData.detail.map((err) => `${err.msg} (${err.loc.join(".")})`).join("\n")
-        throw new Error(errorMessages)
-      } else {
-        throw new Error(errorData.detail || JSON.stringify(errorData) || "Failed to update course")
-      }
+      const error = await response.json()
+      throw new Error(error.detail || "Failed to update course")
     }
 
     alert("Course updated successfully!")
-    const editModalElement = document.getElementById("editModal")
-    const modal = bootstrap.Modal.getInstance(editModalElement)
+    const modal = bootstrap.Modal.getInstance(document.getElementById("editModal"))
     if (modal) {
       modal.hide()
     }
+    document.getElementById("editForm").reset()
     loadCourses()
   } catch (error) {
     console.error("Error updating course:", error)
@@ -323,18 +389,16 @@ document.getElementById("editForm").addEventListener("submit", async (event) => 
   }
 })
 
-// Delete course
+// Delete a course
 async function deleteCourse(courseId) {
   try {
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}`, {
-      method: "DELETE",
+      method: "DELETE"
     })
-
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.detail || "Failed to delete course")
     }
-
     alert("Course deleted successfully!")
     loadCourses()
   } catch (error) {
@@ -343,40 +407,10 @@ async function deleteCourse(courseId) {
   }
 }
 
-// Fix modal focus issues
-function setupModalAccessibility() {
-  // Fix for the course modal
-  const courseModal = document.getElementById("courseModal")
-  if (courseModal) {
-    courseModal.addEventListener("hidden.bs.modal", function () {
-      // Remove aria-hidden when modal is closed
-      setTimeout(() => {
-        if (this.getAttribute("aria-hidden") === "true") {
-          this.removeAttribute("aria-hidden")
-        }
-      }, 100)
-    })
-  }
-
-  // Fix for the edit modal
-  const editModal = document.getElementById("editModal")
-  if (editModal) {
-    editModal.addEventListener("hidden.bs.modal", function () {
-      // Remove aria-hidden when modal is closed
-      setTimeout(() => {
-        if (this.getAttribute("aria-hidden") === "true") {
-          this.removeAttribute("aria-hidden")
-        }
-      }, 100)
-    })
-  }
-}
-
-// Initialize everything when the page loads
-document.addEventListener("DOMContentLoaded", () => {
+// Initial page load
+window.addEventListener("DOMContentLoaded", () => {
+  checkAuth()
   loadDepartments()
   loadCoursesForPrerequisites()
   loadCourses()
-  setupModalAccessibility()
 })
-

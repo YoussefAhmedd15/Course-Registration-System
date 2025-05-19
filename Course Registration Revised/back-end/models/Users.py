@@ -11,6 +11,7 @@ class Student(UserBase):
     student_id: Optional[str] = None #Auto-generated
     GPA: float = Field(..., ge=0.0, le=4.0)
     credit_hours: int = Field(..., gt=0)
+    major: str = Field(..., min_length=2, max_length=100)
     password: str
     role: str
     

@@ -7,6 +7,36 @@ const ENDPOINTS = {
   DEPARTMENTS: `${API_BASE_URL}/departments`,
 }
 
+// Authentication functions
+function checkAuth() {
+  const token = localStorage.getItem('token');
+  const userRole = localStorage.getItem('userRole');
+  
+  if (!token || userRole !== 'admin') {
+    clearAuthStorage();
+    window.location.href = 'Login.html';
+    return false;
+  }
+  return true;
+}
+
+// Function to clear authentication storage
+function clearAuthStorage() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('userEmail');
+  localStorage.removeItem('userName');
+}
+
+// Function to handle logout
+function logout() {
+  console.log('Logging out admin user...');
+  localStorage.clear(); // Clear all localStorage items
+  window.location.href = 'Login.html';
+}
+
 // DOM elements
 const elements = {
   courseTreeView: document.getElementById("courseTreeView"),
@@ -32,29 +62,59 @@ let allCourses = []
 let departments = []
 
 // Utility functions
+let loadingAlert = null;
+
 function showLoading() {
-  elements.loadingSpinner.style.display = "block"
-  elements.courseTreeView.innerHTML = ""
+  // Use SweetAlert2 if available
+  if (typeof window.showLoading === 'function') {
+    loadingAlert = window.showLoading('Loading course tree...');
+  }
 }
 
 function hideLoading() {
-  elements.loadingSpinner.style.display = "none"
+  // Close SweetAlert loading if it was used
+  if (typeof window.closeLoading === 'function' && loadingAlert) {
+    window.closeLoading(loadingAlert);
+    loadingAlert = null;
+  }
+  // Also try to close any SweetAlert loading even if loadingAlert is null (as a fallback)
+  if (typeof window.Swal === 'function' && window.Swal.isVisible && window.Swal.isVisible()) {
+    window.Swal.close();
+  }
+  // Hide the spinner in case it was left visible
+  if (elements.loadingSpinner) {
+    elements.loadingSpinner.style.display = "none";
+  }
 }
 
 function showSuccessAlert(message) {
-  elements.successMessage.textContent = message
-  elements.successAlert.style.display = "block"
+  // Use SweetAlert2 if available
+  if (typeof window.showSuccess === 'function') {
+    window.showSuccess(message);
+    return;
+  }
+  
+  // Fallback to the built-in alert
+  elements.successMessage.textContent = message;
+  elements.successAlert.style.display = "block";
   setTimeout(() => {
-    elements.successAlert.style.display = "none"
-  }, 3000)
+    elements.successAlert.style.display = "none";
+  }, 3000);
 }
 
 function showErrorAlert(message) {
-  elements.errorMessage.textContent = message
-  elements.errorAlert.style.display = "block"
+  // Use SweetAlert2 if available
+  if (typeof window.showError === 'function') {
+    window.showError(message);
+    return;
+  }
+  
+  // Fallback to the built-in alert
+  elements.errorMessage.textContent = message;
+  elements.errorAlert.style.display = "block";
   setTimeout(() => {
-    elements.errorAlert.style.display = "none"
-  }, 3000)
+    elements.errorAlert.style.display = "none";
+  }, 3000);
 }
 
 // Fetch data from API
@@ -1154,6 +1214,20 @@ async function validateCoursePrerequisites(courseId) {
 // Initialization
 async function initializeApp() {
   try {
+    // Check authentication first
+    if (!checkAuth()) {
+      return;
+    }
+    
+    // Set up logout button
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        logout();
+      });
+    }
+    
     // Fetch departments and courses
     const [departmentsData, coursesData] = await Promise.all([fetchDepartments(), fetchAllCourses()])
 
