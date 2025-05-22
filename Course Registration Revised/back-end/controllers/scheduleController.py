@@ -33,6 +33,13 @@ TIME_SLOTS_CACHE = {
     "ttl": 300 # 5 minutes
 }
 
+# Cache for time slot seats
+SEAT_COUNT_CACHE = {
+    "data": {},
+    "timestamp": {},
+    "ttl": 60  # 1 minute - shorter TTL since this data changes more frequently
+}
+
 def time_to_minutes(t: time | str) -> int:
     """Convert time to minutes since midnight for easier comparison"""
     if isinstance(t, time):
@@ -790,3 +797,135 @@ async def get_course_schedule(
         ))
     
     return result
+
+@router.get("/schedule/time-slots-with-seats/{course_id}")
+async def get_time_slots_with_seats(
+    course_id: str,
+    user: TokenData = Depends(get_current_active_user)
+):
+    """Get all time slots for a course with the number of available seats"""
+    try:
+        # Check permission - students must be enrolled
+        if user.role == "student":
+            enrollment = await enrollments_collection.find_one({
+                "student_id": str(user.user_id),
+                "course_id": course_id,
+                "status": {"$in": [EnrollmentStatus.PENDING, EnrollmentStatus.COMPLETED]}
+            })
+            if not enrollment:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You must be enrolled in this course to view its time slots"
+                )
+        
+        # Get the course information
+        course = await courses_collection.find_one({"course_id": course_id})
+        if not course:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Course {course_id} not found"
+            )
+        
+        # Check cache first
+        cache_key = f"time_slots_seats_{course_id}"
+        if (cache_key in SEAT_COUNT_CACHE["data"] and 
+            cache_key in SEAT_COUNT_CACHE["timestamp"] and
+            time_module.time() - SEAT_COUNT_CACHE["timestamp"][cache_key] < SEAT_COUNT_CACHE["ttl"]):
+            return SEAT_COUNT_CACHE["data"][cache_key]
+        
+        # Get all time slots for this course
+        time_slots = await time_slots_collection.find({"course_id": course_id}).to_list(None)
+        
+        # Get the room capacities
+        room_ids = list(set(slot["room_id"] for slot in time_slots if "room_id" in slot))
+        rooms = {
+            room["room_id"]: room 
+            for room in await rooms_collection.find({"room_id": {"$in": room_ids}}).to_list(None)
+        }
+        
+        # Get the enrollment counts for each time slot
+        # Count how many students have selected each time slot
+        slot_ids = [slot["slot_id"] for slot in time_slots]
+        enrolled_counts = {}
+        
+        for slot_id in slot_ids:
+            count = await schedules_collection.count_documents({"selected_slots": slot_id})
+            enrolled_counts[slot_id] = count
+        
+        # Prepare the response
+        time_slots_with_seats = []
+        
+        for slot in time_slots:
+            # Get room capacity
+            room = rooms.get(slot.get("room_id"))
+            room_capacity = room.get("capacity", 0) if room else 0
+            
+            # Get room details
+            room_name = f"{room.get('building', '')}-{room.get('room_number', '')}" if room else "Unknown"
+            
+            # Get instructor details
+            instructor = None
+            instructor_name = None
+            if slot.get("instructor_id"):
+                instructor = await users_collection.find_one({"instructor_id": slot["instructor_id"]})
+                instructor_name = instructor.get("name") if instructor else None
+            
+            # Calculate seats available
+            enrolled_count = enrolled_counts.get(slot["slot_id"], 0)
+            seats_available = max(0, room_capacity - enrolled_count)
+            
+            # Format times for display
+            start_time = slot["start_time"]
+            end_time = slot["end_time"]
+            if isinstance(start_time, str):
+                start_time_parts = start_time.split(":")
+                start_time = f"{start_time_parts[0]}:{start_time_parts[1]}"
+            if isinstance(end_time, str):
+                end_time_parts = end_time.split(":")
+                end_time = f"{end_time_parts[0]}:{end_time_parts[1]}"
+            
+            # Add to results
+            time_slots_with_seats.append({
+                "slot_id": slot["slot_id"],
+                "course_id": slot["course_id"],
+                "course_name": course.get("name", "Unknown Course"),
+                "day": slot["day"],
+                "start_time": start_time,
+                "end_time": end_time,
+                "type": slot["type"],
+                "room_id": slot["room_id"],
+                "room_name": room_name,
+                "instructor_id": slot.get("instructor_id"),
+                "instructor_name": instructor_name,
+                "room_capacity": room_capacity,
+                "enrolled_count": enrolled_count,
+                "seats_available": seats_available
+            })
+        
+        # Group by type for easier consumption by the frontend
+        result = {
+            "lecture": [],
+            "lab": [],
+            "tutorial": []
+        }
+        
+        for slot in time_slots_with_seats:
+            slot_type = slot["type"].lower()
+            if slot_type in result:
+                result[slot_type].append(slot)
+        
+        # Add course information
+        result["course_id"] = course_id
+        result["course_name"] = course.get("name", "Unknown Course")
+        result["course_code"] = course.get("code", course_id)
+        
+        # Update cache
+        SEAT_COUNT_CACHE["data"][cache_key] = result
+        SEAT_COUNT_CACHE["timestamp"][cache_key] = time_module.time()
+        
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving time slots with seats: {str(e)}"
+        )

@@ -269,72 +269,140 @@ async function fetchAvailableCourses(forceRefresh = false) {
       courseGrid.innerHTML = '<div class="loading-indicator">Loading courses...</div>';
     }
     
-    const response = await fetch(`${baseUrl}/courses/tree/available`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-    })
+    try {
+      const response = await fetch(`${baseUrl}/courses/tree/available`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+      });
 
-    console.log("Available courses response status:", response.status);
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        console.log("Authentication failed - redirecting to login");
-        clearAuthStorage()
-        window.location.href = "Login.html"
-        return []
+      console.log("Available courses response status:", response.status);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log("Authentication failed - redirecting to login");
+          clearAuthStorage();
+          window.location.href = "Login.html";
+          return [];
+        }
+        
+        // Try to get error details from response
+        const errorText = await response.text();
+        console.error("Error response text:", errorText);
+        
+        let errorDetail;
+        try {
+          errorDetail = JSON.parse(errorText).detail;
+        } catch (e) {
+          errorDetail = `Failed to fetch available courses: ${response.status}`;
+        }
+        
+        throw new Error(errorDetail || `Failed to fetch available courses: ${response.status}`);
       }
-      
-      // Try to get error details from response
-      const errorText = await response.text();
-      console.error("Error response text:", errorText);
-      
-      let errorDetail;
-      try {
-        errorDetail = JSON.parse(errorText).detail;
-      } catch (e) {
-        errorDetail = `Failed to fetch available courses: ${response.status}`;
+
+      const data = await response.json();
+      console.log("Available courses data received:", data ? "Data received" : "No data");
+
+      // Handle empty data case
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        console.warn("No course data received from API");
+        
+        // Use empty array as fallback
+        availableCourses = [];
+        processCourses();
+        
+        // Show message in course grid
+        if (courseGrid) {
+          courseGrid.innerHTML = '<div class="info-message">No courses are available for registration at this time.</div>';
+        }
+        
+        performanceMetrics.endTimer('fetchAvailableCourses');
+        return [];
       }
+
+      // The API returns an array of departments, each with courses
+      // We need to extract all courses from all departments
+      let extractedCourses = processCoursesFromDepartments(data);
+
+      console.log("Extracted courses count:", extractedCourses.length);
+
+      // Store all extracted courses
+      availableCourses = extractedCourses;
       
-      throw new Error(errorDetail || `Failed to fetch available courses: ${response.status}`);
+      // Cache the course data
+      courseCache.data = extractedCourses;
+      courseCache.timestamp = Date.now();
+      console.log("💾 Course data cached");
+
+      // Process and merge courses
+      processCourses();
+
+      performanceMetrics.endTimer('fetchAvailableCourses');
+      return extractedCourses;
+    } catch (fetchError) {
+      console.error("Fetch error:", fetchError);
+      throw fetchError;
     }
-
-    const data = await response.json()
-    console.log("Available courses data received:", data ? "Data received" : "No data")
-
-    // The API returns an array of departments, each with courses
-    // We need to extract all courses from all departments
-    let extractedCourses = processCoursesFromDepartments(data);
-
-    console.log("Extracted courses count:", extractedCourses.length)
-
-    // Store all extracted courses
-    availableCourses = extractedCourses
-    
-    // Cache the course data
-    courseCache.data = extractedCourses;
-    courseCache.timestamp = Date.now();
-    console.log("💾 Course data cached");
-
-    // Process and merge courses
-    processCourses()
-
-    performanceMetrics.endTimer('fetchAvailableCourses');
-    return extractedCourses
   } catch (error) {
     performanceMetrics.endTimer('fetchAvailableCourses');
-    console.error("Error fetching available courses:", error)
-    console.error("Error stack:", error.stack)
+    console.error("Error fetching available courses:", error);
+    console.error("Error stack:", error.stack);
     
     // Clear loading indicator if error occurs
     if (courseGrid) {
       courseGrid.innerHTML = '<div class="error-message">Failed to load courses. Please try again.</div>';
+      
+      // Add a retry button
+      const retryButton = document.createElement("button");
+      retryButton.className = "retry-button";
+      retryButton.textContent = "Retry";
+      retryButton.addEventListener("click", () => {
+        fetchAvailableCourses(true); // Force refresh on retry
+      });
+      courseGrid.appendChild(retryButton);
+      
+      // Add style for the retry button
+      if (!document.getElementById('retry-button-style')) {
+        const style = document.createElement('style');
+        style.id = 'retry-button-style';
+        style.textContent = `
+          .retry-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .retry-button:hover {
+            background-color: #0069d9;
+          }
+          .error-message {
+            color: #dc3545;
+            padding: 15px;
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 15px;
+          }
+          .info-message {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            padding: 15px;
+            text-align: center;
+            border-radius: 4px;
+            margin-bottom: 15px;
+          }
+        `;
+        document.head.appendChild(style);
+      }
     }
     
     // Only display a non-intrusive error message for this (don't use alert)
     console.error("Failed to load available courses:", error.message);
-    return []
+    return [];
   }
 }
 
@@ -663,7 +731,7 @@ function clearCourseCache() {
 }
 
 // Display courses based on filter
-function displayCourses(filter = "all") {
+function displayCourses(filter = "all", searchTerm = "") {
   courseGrid.innerHTML = ""
   
   // Add refresh button above the course grid
@@ -715,7 +783,6 @@ function displayCourses(filter = "all") {
   }
 
   // Apply search filter if search is active
-  const searchTerm = searchInput.value.toLowerCase().trim()
   if (searchTerm) {
     coursesToDisplay = coursesToDisplay.filter(
       (course) =>
@@ -986,7 +1053,7 @@ async function handleDropCourse(courseId) {
     updateCourseRegistrationStatus(courseId, false);
 
     // Refresh the display with the current filter
-    displayCourses(currentFilter);
+    displayCourses(currentFilter)
   } catch (error) {
     console.error("Error dropping course:", error);
     if (!window.Swal) {
@@ -1027,22 +1094,101 @@ function updateCourseRegistrationStatus(courseId, isRegistered, courseData = nul
   }
 }
 
-// Show error message to user
+// Display error message
 function displayErrorMessage(message) {
-  console.error(message);
-  // Only show alert if message exists
-  if (message) {
-    if (typeof showError === 'function') {
-      showError(message);
-    } else if (window.Swal) {
-      Swal.fire({
-        title: 'Error',
-        text: message,
-        icon: 'error',
-        confirmButtonText: 'OK'
+  console.error("Error:", message);
+  
+  // Use SweetAlert2 if available
+  if (window.Swal) {
+    Swal.fire({
+      title: 'Error',
+      text: message,
+      icon: 'error',
+      confirmButtonText: 'OK'
+    });
+  } else {
+    // Create a visible error message on the page
+    const errorContainer = document.createElement('div');
+    errorContainer.className = 'error-notification';
+    errorContainer.innerHTML = `
+      <div class="error-content">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>${message}</span>
+        <button class="close-error">&times;</button>
+      </div>
+    `;
+    
+    // Add styles if they don't exist
+    if (!document.getElementById('error-notification-style')) {
+      const style = document.createElement('style');
+      style.id = 'error-notification-style';
+      style.textContent = `
+        .error-notification {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background-color: #f8d7da;
+          border: 1px solid #f5c6cb;
+          border-radius: 4px;
+          padding: 15px;
+          z-index: 1000;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+          max-width: 350px;
+          animation: slideIn 0.3s ease-out;
+        }
+        
+        .error-content {
+          display: flex;
+          align-items: center;
+        }
+        
+        .error-content i {
+          color: #dc3545;
+          font-size: 20px;
+          margin-right: 10px;
+        }
+        
+        .error-content span {
+          flex-grow: 1;
+          color: #721c24;
+        }
+        
+        .close-error {
+          background: none;
+          border: none;
+          color: #721c24;
+          font-size: 20px;
+          cursor: pointer;
+          padding: 0;
+          margin-left: 10px;
+        }
+        
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    // Add to document
+    document.body.appendChild(errorContainer);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (errorContainer && errorContainer.parentNode) {
+        errorContainer.parentNode.removeChild(errorContainer);
+      }
+    }, 5000);
+    
+    // Add close button functionality
+    const closeButton = errorContainer.querySelector('.close-error');
+    if (closeButton) {
+      closeButton.addEventListener('click', () => {
+        if (errorContainer && errorContainer.parentNode) {
+          errorContainer.parentNode.removeChild(errorContainer);
+        }
       });
-    } else {
-      alert(message);
     }
   }
 }
@@ -1078,129 +1224,41 @@ async function openTimeSlotModal(courseId) {
       tutorial: null
     };
     
-    // Add CSS styles for time slots if not already present
-    if (!document.getElementById('time-slot-styles')) {
-      const style = document.createElement('style');
-      style.id = 'time-slot-styles';
-      style.textContent = `
-        .time-slots-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 15px;
-          margin-top: 15px;
-        }
-        
-        .time-slot-card {
-          border: 1px solid #dee2e6;
-          border-radius: 8px;
-          padding: 15px;
-          cursor: pointer;
-          transition: all 0.2s;
-          background-color: #f8f9fa;
-        }
-        
-        .time-slot-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          border-color: #adb5bd;
-        }
-        
-        .time-slot-card.selected {
-          background-color: #e3f2fd;
-          border-color: #2196f3;
-          box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3);
-        }
-        
-        .time-slot-day {
-          font-weight: bold;
-          margin-bottom: 5px;
-          color: #495057;
-        }
-        
-        .time-slot-time {
-          font-size: 0.9em;
-          margin-bottom: 8px;
-          color: #212529;
-        }
-        
-        .time-slot-instructor, .time-slot-room {
-          font-size: 0.8em;
-          color: #6c757d;
-        }
-        
-        .no-slots-message {
-          padding: 20px;
-          text-align: center;
-          color: #6c757d;
-          font-style: italic;
-        }
-        
-        .error-message {
-          padding: 20px;
-          text-align: center;
-          color: #dc3545;
-        }
-        
-        .loading-indicator {
-          padding: 20px;
-          text-align: center;
-          color: #6c757d;
-        }
-        
-        .tab-btn {
-          background-color: #f8f9fa;
-          border: 1px solid #dee2e6;
-          padding: 8px 15px;
-          cursor: pointer;
-          border-radius: 4px 4px 0 0;
-          margin-right: 5px;
-        }
-        
-        .tab-btn.active {
-          background-color: #fff;
-          border-bottom-color: #fff;
-          font-weight: bold;
-        }
-        
-        .tab-content {
-          border: 1px solid #dee2e6;
-          border-radius: 0 4px 4px 4px;
-          padding: 15px;
-          min-height: 200px;
-          max-height: 400px;
-          overflow-y: auto;
-        }
-        
-        .tab-pane {
-          display: none;
-        }
-        
-        .tab-pane.active {
-          display: block;
-        }
-        
-        .btn-submit {
-          background-color: #007bff;
-          color: white;
-          border: none;
-          border-radius: 4px;
-          padding: 10px 15px;
-          cursor: pointer;
-          font-weight: 500;
-          margin-top: 15px;
-        }
-        
-        .btn-submit:hover {
-          background-color: #0069d9;
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    // Show loading indicators in all tabs
+    // Show loading state
+    document.getElementById("courseSummary").innerHTML = '<div class="loading-indicator">Loading course info...</div>';
     document.getElementById("lecture").innerHTML = '<div class="loading-indicator">Loading lecture time slots...</div>';
     document.getElementById("lab").innerHTML = '<div class="loading-indicator">Loading lab time slots...</div>';
     document.getElementById("tutorial").innerHTML = '<div class="loading-indicator">Loading tutorial time slots...</div>';
+    document.getElementById("selectedSummary").innerHTML = '<p class="no-selection-message">No time slots selected yet</p>';
+    
+    // Initialize tab badges
+    document.getElementById("lectureBadge").textContent = "0";
+    document.getElementById("labBadge").textContent = "0";
+    document.getElementById("tutorialBadge").textContent = "0";
+    
+    // Get course details to display summary
+    const course = allCourses.find(c => c.course_id === courseId);
+    if (course) {
+      const courseSummaryHTML = `
+        <div class="info-item">
+          <span class="label">Course Code</span>
+          <span class="value">${course.course_id}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Course Name</span>
+          <span class="value">${course.name}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Credit Hours</span>
+          <span class="value">${course.credit_hours || 'N/A'}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Department</span>
+          <span class="value">${course.department_name || 'N/A'}</span>
+        </div>
+      `;
+      document.getElementById("courseSummary").innerHTML = courseSummaryHTML;
+    }
     
     // Fetch available time slots
     await fetchAvailableTimeSlots(courseId);
@@ -1208,83 +1266,42 @@ async function openTimeSlotModal(courseId) {
     // Setup tab navigation
     setupTabNavigation();
     
+    // Add event listener to the Save button
+    document.getElementById("saveSlotBtn").addEventListener("click", saveTimeSlotSelection);
+    
     // Show the modal
     modal.style.display = "block";
   } catch (error) {
     console.error("Error opening time slot modal:", error);
-    alert("Failed to load time slots. Please try again.");
-  }
-}
-
-// Fetch existing time slot selections for the student and course
-async function fetchExistingTimeSlots(courseId) {
-  try {
-    // Get schedule data from the student's overall schedule - this endpoint exists in the backend
-    const response = await fetch(`${baseUrl}/schedule/${studentId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-    });
-    
-    if (!response.ok) {
-      // It's okay if there's no schedule yet
-      console.log(`No existing schedule found for student ${studentId}, status: ${response.status}`);
-      return;
-    }
-    
-    const scheduleData = await response.json();
-    console.log("Full schedule data:", scheduleData);
-    
-    // Find the course we're looking for in the schedule
-    const courseSchedule = scheduleData.schedule?.find(item => item.course_id === courseId);
-    
-    if (courseSchedule && courseSchedule.slots && courseSchedule.slots.length > 0) {
-      console.log("Found existing schedule for course:", courseSchedule);
-      
-      // Reset selected time slots before setting new ones
-      selectedTimeSlots = {
-        lecture: null,
-        lab: null,
-        tutorial: null
-      };
-      
-      // Process each slot by its type
-      courseSchedule.slots.forEach(slot => {
-        if (slot.type === 'Lecture') {
-          selectedTimeSlots.lecture = slot.slot_id;
-          highlightSelectedTimeSlot("lecture", slot.slot_id);
-        } else if (slot.type === 'Lab') {
-          selectedTimeSlots.lab = slot.slot_id;
-          highlightSelectedTimeSlot("lab", slot.slot_id);
-        } else if (slot.type === 'Tutorial') {
-          selectedTimeSlots.tutorial = slot.slot_id;
-          highlightSelectedTimeSlot("tutorial", slot.slot_id);
-        }
-      });
+    if (typeof showError === 'function') {
+      showError("Failed to load time slots. Please try again.");
     } else {
-      console.log("No existing schedule found for this course");
+      alert("Failed to load time slots. Please try again.");
     }
-  } catch (error) {
-    console.error("Error fetching existing time slots:", error);
-    // Non-critical error, we can continue without existing selections
   }
 }
 
-// Fetch available time slots from the server
+// Fetch available time slots for a course, now with seat availability
 async function fetchAvailableTimeSlots(courseId) {
   try {
-    console.log(`Fetching time slots for course: ${courseId}`);
     // Show loading indicators in all tabs
-    document.getElementById("lecture").innerHTML = '<div class="loading-indicator">Loading lecture time slots...</div>';
-    document.getElementById("lab").innerHTML = '<div class="loading-indicator">Loading lab time slots...</div>';
-    document.getElementById("tutorial").innerHTML = '<div class="loading-indicator">Loading tutorial time slots...</div>';
+    document.getElementById("lecture").innerHTML = '<div class="loading-indicator"><i class="bi bi-hourglass-split"></i> Loading lecture slots...</div>';
+    document.getElementById("lab").innerHTML = '<div class="loading-indicator"><i class="bi bi-hourglass-split"></i> Loading lab slots...</div>';
+    document.getElementById("tutorial").innerHTML = '<div class="loading-indicator"><i class="bi bi-hourglass-split"></i> Loading tutorial slots...</div>';
+
+    // Get the token for authorization
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('No authentication token found');
+      throw new Error('You must be logged in to view time slots');
+    }
     
-    // Get time slots from the API - use the AdminTimeSlots endpoint which works
-    const response = await fetch(`${baseUrl}/time-slots/course/${courseId}`, {
+    // Use the new endpoint that includes seat availability
+    const response = await fetch(`${baseUrl}/schedule/time-slots-with-seats/${courseId}`, {
+      method: "GET",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
       },
     });
     
@@ -1302,52 +1319,28 @@ async function fetchAvailableTimeSlots(courseId) {
       throw new Error(`API returned ${response.status}: ${errorText}`);
     }
     
-    const timeSlots = await response.json();
-    console.log("Time slots data from API:", timeSlots);
+    const timeSlotData = await response.json();
+    console.log("Time slots data from API:", timeSlotData);
     
-    // Group time slots by type
+    // Use the grouped data directly since our new endpoint returns already grouped data
     const groupedSlots = {
-      lecture: [],
-      lab: [],
-      tutorial: []
+      lecture: timeSlotData.lecture || [],
+      lab: timeSlotData.lab || [],
+      tutorial: timeSlotData.tutorial || []
     };
     
-    // Process the API response to group by type
-    timeSlots.forEach(slot => {
-      // Check for available seats - we don't have this directly, but we can query the course
-      // Just add all slots for now, we'll show them all and disable selection if no seats available
-      // We'll check seat availability at selection time
-      if (slot.type === 'Lecture') {
-        groupedSlots.lecture.push({
-          time_slot_id: slot.slot_id,
-          day_of_week: slot.day,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          instructor_name: slot.instructor_name || 'Not Assigned',
-          room_id: slot.room_id
-        });
-      } else if (slot.type === 'Lab') {
-        groupedSlots.lab.push({
-          time_slot_id: slot.slot_id,
-          day_of_week: slot.day,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          instructor_name: slot.instructor_name || 'Not Assigned',
-          room_id: slot.room_id
-        });
-      } else if (slot.type === 'Tutorial') {
-        groupedSlots.tutorial.push({
-          time_slot_id: slot.slot_id,
-          day_of_week: slot.day,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          instructor_name: slot.instructor_name || 'Not Assigned',
-          room_id: slot.room_id
-        });
-      }
+    console.log("Grouped time slots:", {
+      lecture: groupedSlots.lecture.length,
+      lab: groupedSlots.lab.length,
+      tutorial: groupedSlots.tutorial.length
     });
     
-    // Display time slots in their respective tabs
+    // Update badge counts
+    document.getElementById("lectureBadge").textContent = groupedSlots.lecture.length;
+    document.getElementById("labBadge").textContent = groupedSlots.lab.length;
+    document.getElementById("tutorialBadge").textContent = groupedSlots.tutorial.length;
+    
+    // Display time slots in their respective tabs with seat availability
     displayTimeSlots("lecture", groupedSlots.lecture);
     displayTimeSlots("lab", groupedSlots.lab);
     displayTimeSlots("tutorial", groupedSlots.tutorial);
@@ -1363,9 +1356,11 @@ async function fetchAvailableTimeSlots(courseId) {
   }
 }
 
-// Display time slots in the specified tab
+// Display time slots in the specified tab with seat availability information
 function displayTimeSlots(tabId, timeSlots) {
   const tabElement = document.getElementById(tabId);
+  
+  console.log(`Displaying ${timeSlots.length} ${tabId} slots in tab`);
   
   if (!timeSlots || timeSlots.length === 0) {
     tabElement.innerHTML = '<div class="no-slots-message">No time slots available</div>';
@@ -1375,13 +1370,42 @@ function displayTimeSlots(tabId, timeSlots) {
   let html = '<div class="time-slots-grid">';
   
   timeSlots.forEach(slot => {
+    const selectedClass = selectedTimeSlots[tabId] === slot.slot_id ? 'selected' : '';
+    
+    // Determine status based on available seats
+    let statusClass = '';
+    let statusText = '';
+    
+    if (slot.seats_available <= 0) {
+      statusClass = 'full';
+      statusText = 'FULL';
+    } else if (slot.seats_available < 5) {
+      statusClass = 'limited';
+      statusText = `${slot.seats_available} seats left`;
+    } else {
+      statusClass = 'available';
+      statusText = `${slot.seats_available} seats available`;
+    }
+    
+    const day = slot.day_of_week || slot.day;
+    const startTime = formatTime(slot.start_time);
+    const endTime = formatTime(slot.end_time);
+    const instructorName = slot.instructor_name || 'TBD';
+    const roomName = slot.room_name || slot.room_id || 'TBD';
+    
+    // Disable selection for full slots
+    const disabledAttr = statusClass === 'full' ? 'disabled="disabled"' : '';
+    const disabledClass = statusClass === 'full' ? 'disabled' : '';
+    
     html += `
-      <div class="time-slot-card" data-slot-id="${slot.time_slot_id}">
-        <div class="time-slot-info">
-          <div class="time-slot-day">${slot.day_of_week}</div>
-          <div class="time-slot-time">${slot.start_time} - ${slot.end_time}</div>
-          <div class="time-slot-instructor">${slot.instructor_name || 'TBD'}</div>
-          <div class="time-slot-room">${slot.room_id || 'TBD'}</div>
+      <div class="time-slot-card ${tabId} ${selectedClass} ${disabledClass}" 
+           data-slot-id="${slot.slot_id}" ${disabledAttr}>
+        <div class="time-slot-day">${day}</div>
+        <div class="time-slot-time">${startTime} - ${endTime}</div>
+        <div class="time-slot-instructor">${instructorName}</div>
+        <div class="time-slot-room">${roomName}</div>
+        <div class="time-slot-seats ${statusClass}">
+          <i class="bi bi-person-fill"></i> ${statusText}
         </div>
       </div>
     `;
@@ -1391,127 +1415,302 @@ function displayTimeSlots(tabId, timeSlots) {
   tabElement.innerHTML = html;
   
   // Add click event listeners to time slot cards
-  tabElement.querySelectorAll('.time-slot-card').forEach(card => {
+  tabElement.querySelectorAll('.time-slot-card:not(.disabled)').forEach(card => {
     card.addEventListener('click', () => {
       selectTimeSlot(tabId, card.dataset.slotId);
     });
   });
 }
 
-// Handle time slot selection
-function selectTimeSlot(tabId, slotId) {
-  // Update selected time slot for this tab
-  selectedTimeSlots[tabId] = slotId;
-  
-  // Update visual selection
-  highlightSelectedTimeSlot(tabId, slotId);
-}
-
-// Highlight selected time slot in the UI
-function highlightSelectedTimeSlot(tabId, slotId) {
-  const tabElement = document.getElementById(tabId);
-  
-  // Remove highlight from all cards in this tab
-  tabElement.querySelectorAll('.time-slot-card').forEach(card => {
-    card.classList.remove('selected');
-  });
-  
-  // Add highlight to selected card
-  const selectedCard = tabElement.querySelector(`.time-slot-card[data-slot-id="${slotId}"]`);
-  if (selectedCard) {
-    selectedCard.classList.add('selected');
-  }
-}
-
-// Setup tab navigation in time slot modal
-function setupTabNavigation() {
-  const tabButtons = document.querySelectorAll('.tab-btn');
-  const tabPanes = document.querySelectorAll('.tab-pane');
-  
-  // Initialize first tab as active if not already
-  if (!document.querySelector('.tab-btn.active')) {
-    tabButtons[0]?.classList.add('active');
-    tabPanes[0]?.classList.add('active');
-  }
-  
-  tabButtons.forEach((button, index) => {
-    // Add click handler
-    button.addEventListener('click', () => {
-      activateTab(button.dataset.tab);
-    });
-    
-    // Add keyboard accessibility
-    button.addEventListener('keydown', (e) => {
-      // Enter or Space activates the tab
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        activateTab(button.dataset.tab);
+// Add CSS styles for seat availability
+function addSeatAvailabilityStyles() {
+  if (!document.getElementById('seat-availability-styles')) {
+    const style = document.createElement('style');
+    style.id = 'seat-availability-styles';
+    style.textContent = `
+      .time-slot-seats {
+        margin-top: 8px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       
-      // Arrow keys for navigation between tabs
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        const nextIndex = (index + 1) % tabButtons.length;
-        tabButtons[nextIndex].focus();
+      .time-slot-seats i {
+        margin-right: 4px;
       }
       
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const prevIndex = (index - 1 + tabButtons.length) % tabButtons.length;
-        tabButtons[prevIndex].focus();
+      .time-slot-seats.available {
+        background-color: #e3fcef;
+        color: #0d6832;
       }
-    });
-    
-    // Make tabs focusable
-    button.setAttribute('tabindex', '0');
-    button.setAttribute('role', 'tab');
-    button.setAttribute('aria-selected', button.classList.contains('active') ? 'true' : 'false');
-    button.setAttribute('aria-controls', button.dataset.tab);
-  });
-  
-  // Add ARIA attributes to tab content
-  tabPanes.forEach(pane => {
-    pane.setAttribute('role', 'tabpanel');
-    pane.setAttribute('aria-labelledby', 'tab-' + pane.id);
-  });
-  
-  // Setup submit button
-  const submitButton = document.querySelector('.btn-submit');
-  submitButton.addEventListener('click', saveTimeSlotSelection);
-  
-  // Add keyboard handler for Escape key to close modal
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeModal();
-    }
-  });
+      
+      .time-slot-seats.limited {
+        background-color: #fff3cd;
+        color: #856404;
+      }
+      
+      .time-slot-seats.full {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      
+      .time-slot-card.disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        position: relative;
+      }
+      
+      .time-slot-card.disabled::after {
+        content: 'FULL';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        background-color: rgba(220, 53, 69, 0.9);
+        color: white;
+        font-weight: bold;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 14px;
+        z-index: 2;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 }
 
-// Helper function to activate a tab
-function activateTab(tabId) {
-  // Remove active class from all buttons and panes
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.classList.remove('active');
-    btn.setAttribute('aria-selected', 'false');
-  });
-  document.querySelectorAll('.tab-pane').forEach(pane => {
-    pane.classList.remove('active');
-  });
-  
-  // Add active class to clicked button and corresponding pane
-  const activeButton = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-  const activePane = document.getElementById(tabId);
-  
-  if (activeButton && activePane) {
-    activeButton.classList.add('active');
-    activeButton.setAttribute('aria-selected', 'true');
-    activePane.classList.add('active');
-    
-    // If there are no time slots in this tab, ensure we show a message
-    if (activePane.innerHTML.trim() === '') {
-      activePane.innerHTML = '<div class="no-slots-message">No time slots available</div>';
-    }
+// Add styles for toast notifications if they don't exist
+function addToastStyles() {
+  if (!document.getElementById('toast-notification-style')) {
+    const style = document.createElement('style');
+    style.id = 'toast-notification-style';
+    style.textContent = `
+      .toast-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #d1e7dd;
+        border: 1px solid #badbcc;
+        border-radius: 4px;
+        padding: 12px 15px;
+        z-index: 1100;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        max-width: 300px;
+        animation: slideInToast 0.3s ease-out, fadeOutToast 0.5s ease-in 2.5s forwards;
+      }
+      
+      .toast-content {
+        display: flex;
+        align-items: center;
+      }
+      
+      .toast-content i {
+        color: #0f5132;
+        font-size: 18px;
+        margin-right: 10px;
+      }
+      
+      .toast-content span {
+        color: #0f5132;
+        font-size: 14px;
+      }
+      
+      @keyframes slideInToast {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      
+      @keyframes fadeOutToast {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
   }
+}
+
+// Modified initialization function
+async function init() {
+  try {
+    console.log("Initializing student registration page");
+    
+    // Add seat availability styles
+    addSeatAvailabilityStyles();
+    
+    // Add toast notification styles
+    addToastStyles();
+    
+    // Setup tab navigation
+    setupTabNavigation();
+    
+    // Get student info
+    await fetchStudentInfo();
+    
+    // Get registration status
+    await fetchRegistrationStatus();
+    
+    // Fetch enrollments
+    await fetchEnrollments();
+    
+    // Show available courses
+    await fetchAvailableCourses();
+    
+    // Display initial course list
+    displayCourses();
+    
+    // Add event listeners for search box
+    const searchInput = document.querySelector(".search-bar input");
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        // Filter courses based on search term
+        displayCourses(currentFilter, searchTerm);
+      });
+    }
+    
+    // Add event listeners for filter tabs
+    const filterTabs = document.querySelectorAll(".filter-tabs .tab");
+    if (filterTabs && filterTabs.length > 0) {
+      filterTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+          // Remove active class from all tabs
+          filterTabs.forEach(t => t.classList.remove('active'));
+          // Add active class to clicked tab
+          this.classList.add('active');
+          
+          // Determine filter based on tab text
+          let filter = "all";
+          if (this.textContent.includes("Registered")) {
+            filter = "registered";
+          } else if (this.textContent.includes("Available")) {
+            filter = "available";
+          }
+          
+          currentFilter = filter;
+          // Apply filter using the current search term if any
+          const currentSearchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+          displayCourses(filter, currentSearchTerm);
+        });
+      });
+    }
+    
+    // Add event listener for save time slot selection
+    const saveSlotBtn = document.getElementById('saveSlotBtn');
+    if (saveSlotBtn) {
+      saveSlotBtn.addEventListener('click', saveTimeSlotSelection);
+    }
+    
+    console.log("Student registration page initialized");
+    
+    // Finish performance monitoring
+    performanceMetrics.finishLoading();
+  } catch (error) {
+    console.error("Error initializing student registration page:", error);
+    displayErrorMessage("An error occurred while loading the registration page. Please try again later.");
+  }
+}
+
+// Start initialization when document is ready
+document.addEventListener("DOMContentLoaded", function() {
+  // Initialize the application
+  init().catch(error => {
+    console.error("Failed to initialize page:", error);
+    
+    // Show a user-friendly error with retry button
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.innerHTML = `
+        <div class="initialization-error">
+          <h2><i class="bi bi-exclamation-triangle"></i> Something went wrong</h2>
+          <p>We couldn't load the course registration page. This might be due to a network issue or server problem.</p>
+          <button id="retryInitButton" class="btn-retry">Try Again</button>
+        </div>
+      `;
+      
+      // Add style for the error message
+      if (!document.getElementById('init-error-style')) {
+        const style = document.createElement('style');
+        style.id = 'init-error-style';
+        style.textContent = `
+          .initialization-error {
+            text-align: center;
+            padding: 40px 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px;
+          }
+          .initialization-error h2 {
+            color: #dc3545;
+            margin-bottom: 20px;
+          }
+          .initialization-error i {
+            margin-right: 10px;
+          }
+          .initialization-error p {
+            color: #6c757d;
+            margin-bottom: 30px;
+            font-size: 16px;
+          }
+          .btn-retry {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+          }
+          .btn-retry:hover {
+            background-color: #0069d9;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      
+      // Add event listener for retry button
+      const retryButton = document.getElementById('retryInitButton');
+      if (retryButton) {
+        retryButton.addEventListener('click', function() {
+          window.location.reload();
+        });
+      }
+    }
+  });
+});
+
+// Handle window click for modal
+window.onclick = (event) => {
+  const modal = document.getElementById("timeSlotModal")
+  if (event.target == modal) {
+    modal.style.display = "none"
+  }
+}
+
+// Function to clear authentication storage
+function clearAuthStorage() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("userRole");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("userEmail");
+  localStorage.removeItem("userName");
+}
+
+function logout() {
+  localStorage.clear();
+  window.location.href = "Login.html";
+}
+
+const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    logout();
+  });
 }
 
 // Save time slot selection
@@ -1534,6 +1733,28 @@ async function saveTimeSlotSelection() {
       return;
     }
     
+    // Check for conflicts before saving
+    const conflicts = document.querySelectorAll('.time-slot-card.conflict');
+    if (conflicts.length > 0) {
+      if (window.Swal) {
+        const result = await Swal.fire({
+          title: 'Time Conflict Detected',
+          text: 'There are conflicts between your selected time slots. Do you want to proceed anyway?',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Proceed',
+          cancelButtonText: 'No, Fix Conflicts'
+        });
+        
+        if (!result.isConfirmed) {
+          return;
+        }
+      } else {
+        const proceed = confirm("Time conflicts detected. Do you want to proceed anyway?");
+        if (!proceed) return;
+      }
+    }
+    
     // Show loading indicator
     let loadingAlert;
     if (window.Swal) {
@@ -1547,51 +1768,174 @@ async function saveTimeSlotSelection() {
       });
     }
     
-    // Format selected slots into an array, filtering out null values
-    const selectedSlots = [];
-    if (selectedTimeSlots.lecture) selectedSlots.push(selectedTimeSlots.lecture);
-    if (selectedTimeSlots.lab) selectedSlots.push(selectedTimeSlots.lab);
-    if (selectedTimeSlots.tutorial) selectedSlots.push(selectedTimeSlots.tutorial);
+    // Check if any of the selected slots are already registered by the student
+    try {
+      const scheduleResponse = await fetch(`${baseUrl}/schedule/${studentId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+      });
+      
+      if (scheduleResponse.ok) {
+        const scheduleData = await scheduleResponse.json();
+        const courseSchedule = scheduleData.schedule?.find(item => item.course_id === currentCourseId);
+        
+        if (courseSchedule && courseSchedule.slots && courseSchedule.slots.length > 0) {
+          // Check if any selected slot is already registered
+          let alreadyRegistered = false;
+          let alreadyRegisteredType = '';
+          
+          for (const [type, slotId] of Object.entries(selectedTimeSlots)) {
+            if (!slotId) continue;
+            
+            const existingSlot = courseSchedule.slots.find(slot => 
+              slot.slot_id === slotId && slot.type.toLowerCase() === type.toLowerCase()
+            );
+            
+            if (existingSlot) {
+              alreadyRegistered = true;
+              alreadyRegisteredType = type;
+              break;
+            }
+          }
+          
+          if (alreadyRegistered) {
+            // Close loading indicator
+            if (loadingAlert) {
+              loadingAlert.close();
+            }
+            
+            if (window.Swal) {
+              Swal.fire({
+                title: 'Already Registered',
+                text: `You have already registered for this ${alreadyRegisteredType} time slot.`,
+                icon: 'info',
+                confirmButtonText: 'OK'
+              });
+            } else {
+              alert(`You have already registered for this ${alreadyRegisteredType} time slot.`);
+            }
+            return;
+          }
+        }
+      }
+    } catch (scheduleError) {
+      console.error("Error checking existing schedule:", scheduleError);
+      // Continue with the registration attempt even if this check fails
+    }
     
-    console.log("Sending time slot selection:", {
-      student_id: studentId,
-      course_id: currentCourseId,
-      selected_slots: selectedSlots
-    });
+    // Store the selected slot IDs before sending requests
+    const selectedSlots = {
+      lecture: selectedTimeSlots.lecture,
+      lab: selectedTimeSlots.lab,
+      tutorial: selectedTimeSlots.tutorial
+    };
     
-    // Send selection to server
-    const response = await fetch(`${baseUrl}/schedule/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        student_id: studentId,
-        course_id: currentCourseId,
-        selected_slots: selectedSlots
-      }),
-    });
+    // Process and save each time slot individually
+    const savePromises = [];
+    const responseData = [];
+    
+    // Save each selected time slot using the correct endpoint
+    if (selectedTimeSlots.lecture) {
+      savePromises.push(
+        fetch(`${baseUrl}/schedule/select-time-slot`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            course_id: currentCourseId,
+            slot_id: selectedTimeSlots.lecture
+          }),
+        }).then(response => {
+          if (response.ok) {
+            return response.json().then(data => {
+              responseData.push({ type: 'lecture', data });
+              return { ok: true };
+            });
+          }
+          return response;
+        })
+      );
+    }
+    
+    if (selectedTimeSlots.lab) {
+      savePromises.push(
+        fetch(`${baseUrl}/schedule/select-time-slot`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            course_id: currentCourseId,
+            slot_id: selectedTimeSlots.lab
+          }),
+        }).then(response => {
+          if (response.ok) {
+            return response.json().then(data => {
+              responseData.push({ type: 'lab', data });
+              return { ok: true };
+            });
+          }
+          return response;
+        })
+      );
+    }
+    
+    if (selectedTimeSlots.tutorial) {
+      savePromises.push(
+        fetch(`${baseUrl}/schedule/select-time-slot`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            course_id: currentCourseId,
+            slot_id: selectedTimeSlots.tutorial
+          }),
+        }).then(response => {
+          if (response.ok) {
+            return response.json().then(data => {
+              responseData.push({ type: 'tutorial', data });
+              return { ok: true };
+            });
+          }
+          return response;
+        })
+      );
+    }
+    
+    // Wait for all time slot selections to complete
+    const responses = await Promise.all(savePromises);
     
     // Close loading indicator if using SweetAlert2
     if (loadingAlert) {
       loadingAlert.close();
     }
     
-    if (!response.ok) {
-      let errorMessage;
-      try {
-        // Try to parse JSON error response
-        const errorData = await response.json();
-        errorMessage = errorData.detail || `Failed to save time slot selection: ${response.status}`;
-      } catch (e) {
-        // If response is not valid JSON, get text
-        const errorText = await response.text();
-        errorMessage = `Error (${response.status}): ${errorText || 'Unknown error'}`;
+    // Check for errors in responses
+    let hasError = false;
+    let errorMessage = "";
+    
+    for (const response of responses) {
+      if (!response.ok) {
+        hasError = true;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || `Failed to save time slot selection: ${response.status}`;
+        } catch (e) {
+          errorMessage = `Error (${response.status}): ${await response.text() || 'Unknown error'}`;
+        }
+        console.error("Time slot selection error:", errorMessage);
+        break;
       }
-      
-      console.error("Time slot selection error:", errorMessage);
-      
+    }
+    
+    if (hasError) {
       if (window.Swal) {
         Swal.fire({
           title: 'Error',
@@ -1602,12 +1946,11 @@ async function saveTimeSlotSelection() {
       } else {
         alert(`Error: ${errorMessage}`);
       }
-      
       throw new Error(errorMessage);
     }
     
-    const result = await response.json();
-    console.log("Schedule saved:", result);
+    // Update the available seats in the UI for selected time slots
+    updateSeatsAfterSelection(selectedSlots);
     
     // Show success message
     if (window.Swal) {
@@ -1644,106 +1987,557 @@ async function saveTimeSlotSelection() {
   }
 }
 
+// Function to update available seats after selection - improved to accurately count seats
+function updateSeatsAfterSelection(selectedSlots) {
+  // For each selected slot, update the seats available
+  Object.entries(selectedSlots).forEach(([type, slotId]) => {
+    if (!slotId) return;
+    
+    // Find the slot card
+    const slotCard = document.querySelector(`.time-slot-card[data-slot-id="${slotId}"]`);
+    if (!slotCard) return;
+    
+    // Find the seats element
+    const seatsElement = slotCard.querySelector('.time-slot-seats');
+    if (!seatsElement) return;
+    
+    // Get current seats info
+    const currentText = seatsElement.textContent.trim();
+    let seatsAvailable = 0;
+    
+    // Extract the number of available seats
+    const match = currentText.match(/(\d+)\s+seats?/);
+    if (match && match[1]) {
+      seatsAvailable = parseInt(match[1], 10);
+    }
+    
+    // Check if this is already registered by the student
+    // If it's already registered, we shouldn't decrease the count again
+    let isAlreadyRegistered = false;
+    
+    // We'll check this by looking at the 'selected' class that was applied during fetchExistingTimeSlots
+    const wasPreSelected = slotCard.classList.contains('selected') && 
+                          document.getElementById('selectedSummary').textContent.includes(slotId);
+    
+    // Only decrease seat count if this wasn't already selected
+    if (!wasPreSelected && seatsAvailable > 0) {
+      seatsAvailable--;
+      
+      // Update the text
+      let newText = '';
+      let statusClass = '';
+      
+      if (seatsAvailable <= 0) {
+        newText = 'FULL';
+        statusClass = 'full';
+        // Add disabled class to the card
+        slotCard.classList.add('disabled');
+      } else if (seatsAvailable < 5) {
+        newText = `${seatsAvailable} seat${seatsAvailable === 1 ? '' : 's'} left`;
+        statusClass = 'limited';
+      } else {
+        newText = `${seatsAvailable} seats available`;
+        statusClass = 'available';
+      }
+      
+      // Update the element
+      seatsElement.textContent = newText;
+      seatsElement.className = `time-slot-seats ${statusClass}`;
+      
+      console.log(`Updated seats for ${type} slot ${slotId}: ${newText}`);
+    } else if (wasPreSelected) {
+      console.log(`Slot ${slotId} was already selected, not updating seat count`);
+    }
+  });
+}
+
+// Handle time slot selection
+function selectTimeSlot(tabId, slotId) {
+  console.log(`Selecting ${tabId} slot: ${slotId}`);
+  
+  // Check if this slot is already selected
+  if (selectedTimeSlots[tabId] === slotId) {
+    // User is clicking the same slot again, deselect it
+    selectedTimeSlots[tabId] = null;
+    highlightSelectedTimeSlot(tabId, null);
+    console.log(`Deselected ${tabId} slot: ${slotId}`);
+    
+    // Show feedback to user
+    if (window.Swal) {
+      Swal.fire({
+        title: 'Time Slot Deselected',
+        text: `You have removed your ${tabId} time slot selection.`,
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    } else {
+      // Create a toast notification if SweetAlert is not available
+      const toast = document.createElement('div');
+      toast.className = 'toast-notification';
+      toast.innerHTML = `
+        <div class="toast-content">
+          <i class="bi bi-info-circle"></i>
+          <span>Time slot deselected</span>
+        </div>
+      `;
+      document.body.appendChild(toast);
+      
+      // Auto-remove after 3 seconds
+      setTimeout(() => {
+        if (toast && toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+        }
+      }, 3000);
+    }
+  } else {
+    // Check if there's already a selection for this type
+    if (selectedTimeSlots[tabId]) {
+      // Ask for confirmation before changing selection
+      if (window.Swal) {
+        Swal.fire({
+          title: 'Change Selection?',
+          text: `You've already selected a ${tabId} time slot. Do you want to change it?`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, change it',
+          cancelButtonText: 'No, keep current selection'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Update selected time slot for this tab
+            selectedTimeSlots[tabId] = slotId;
+            
+            // Update visual selection in the tab
+            highlightSelectedTimeSlot(tabId, slotId);
+            
+            // Update the selected time slots summary
+            updateSelectedSummary();
+            
+            // Check for conflicts
+            checkTimeSlotConflicts();
+          }
+        });
+      } else {
+        const confirmChange = confirm(`You've already selected a ${tabId} time slot. Do you want to change it?`);
+        if (confirmChange) {
+          // Update selected time slot for this tab
+          selectedTimeSlots[tabId] = slotId;
+          
+          // Update visual selection in the tab
+          highlightSelectedTimeSlot(tabId, slotId);
+          
+          // Update the selected time slots summary
+          updateSelectedSummary();
+          
+          // Check for conflicts
+          checkTimeSlotConflicts();
+        }
+      }
+    } else {
+      // No previous selection, just select this one
+      selectedTimeSlots[tabId] = slotId;
+      
+      // Update visual selection in the tab
+      highlightSelectedTimeSlot(tabId, slotId);
+      
+      // Update the selected time slots summary
+      updateSelectedSummary();
+      
+      // Check for conflicts
+      checkTimeSlotConflicts();
+      
+      // Show selection confirmation toast
+      if (window.Swal) {
+        Swal.fire({
+          title: 'Time Slot Selected',
+          text: `You have selected a ${tabId} time slot.`,
+          icon: 'success',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2000
+        });
+      } else {
+        // Create a toast notification if SweetAlert is not available
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.style.backgroundColor = '#d1e7dd';
+        toast.innerHTML = `
+          <div class="toast-content">
+            <i class="bi bi-check-circle"></i>
+            <span>${tabId.charAt(0).toUpperCase() + tabId.slice(1)} time slot selected</span>
+          </div>
+        `;
+        document.body.appendChild(toast);
+        
+        // Auto-remove after 2 seconds
+        setTimeout(() => {
+          if (toast && toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 2000);
+      }
+    }
+  }
+}
+
+// Highlight selected time slot in the tab pane
+function highlightSelectedTimeSlot(tabId, slotId) {
+  // Get the tab element
+  const tabElement = document.getElementById(tabId);
+  if (!tabElement) {
+    console.error(`Tab element not found: ${tabId}`);
+    return;
+  }
+  
+  // Remove selection from all cards in this tab
+  tabElement.querySelectorAll('.time-slot-card').forEach(card => {
+    card.classList.remove('selected');
+  });
+  
+  // If no slot ID (deselection), just return after clearing selection
+  if (!slotId) {
+    console.log(`Cleared selection for ${tabId}`);
+    return;
+  }
+  
+  // Add selection to the chosen card
+  const selectedCard = tabElement.querySelector(`.time-slot-card[data-slot-id="${slotId}"]`);
+  if (selectedCard) {
+    selectedCard.classList.add('selected');
+    console.log(`Highlighted card for ${tabId} slot: ${slotId}`);
+    
+    // Make sure the selected card is visible in the scrollable container
+    selectedCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    console.error(`Selected card not found for ${tabId} slot: ${slotId}`);
+  }
+}
+
+// Update the selected time slots summary section
+function updateSelectedSummary() {
+  const summaryElement = document.getElementById('selectedSummary');
+  
+  // Check if there are any selections
+  const hasSelections = selectedTimeSlots.lecture || selectedTimeSlots.lab || selectedTimeSlots.tutorial;
+  
+  if (!hasSelections) {
+    summaryElement.innerHTML = '<p class="no-selection-message">No time slots selected yet</p>';
+    return;
+  }
+  
+  // Build HTML for selected slots
+  let html = '';
+  
+  // Function to add a selected slot to the summary
+  const addSlotToSummary = (type, slotId) => {
+    if (!slotId) return;
+    
+    // Find the slot details
+    const slotCard = document.querySelector(`.time-slot-card[data-slot-id="${slotId}"]`);
+    if (!slotCard) return;
+    
+    // Get slot info
+    const day = slotCard.querySelector('.time-slot-day').textContent;
+    const time = slotCard.querySelector('.time-slot-time').textContent;
+    const instructor = slotCard.querySelector('.time-slot-instructor').textContent;
+    const room = slotCard.querySelector('.time-slot-room').textContent;
+    
+    // Get seats info if available
+    let seatsInfo = '';
+    const seatsElement = slotCard.querySelector('.time-slot-seats');
+    if (seatsElement) {
+      seatsInfo = ` | ${seatsElement.textContent.trim()}`;
+    }
+    
+    html += `
+      <div class="selected-slot-item ${type}">
+        <div class="selected-slot-info">
+          <span class="selected-slot-type">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+          <span class="selected-slot-details">${day} | ${time} | ${room} | ${instructor}${seatsInfo}</span>
+        </div>
+        <button type="button" class="remove-slot-btn" data-type="${type}">
+          <i class="bi bi-x-circle"></i>
+        </button>
+      </div>
+    `;
+  };
+  
+  // Add each selected slot type to the summary
+  addSlotToSummary('lecture', selectedTimeSlots.lecture);
+  addSlotToSummary('lab', selectedTimeSlots.lab);
+  addSlotToSummary('tutorial', selectedTimeSlots.tutorial);
+  
+  summaryElement.innerHTML = html;
+  
+  // Add event listeners to remove buttons
+  summaryElement.querySelectorAll('.remove-slot-btn').forEach(button => {
+    button.addEventListener('click', () => {
+      const slotType = button.dataset.type;
+      
+      // Remove selection
+      selectedTimeSlots[slotType] = null;
+      
+      // Update UI
+      highlightSelectedTimeSlot(slotType, null);
+      updateSelectedSummary();
+      checkTimeSlotConflicts();
+    });
+  });
+}
+
+// Check for time conflicts between selected slots
+function checkTimeSlotConflicts() {
+  // Reset all conflict indicators
+  document.querySelectorAll('.time-slot-card.conflict').forEach(card => {
+    card.classList.remove('conflict');
+  });
+  
+  // Get selected slot cards
+  const selectedCards = [];
+  Object.entries(selectedTimeSlots).forEach(([type, slotId]) => {
+    if (slotId) {
+      const card = document.querySelector(`.time-slot-card[data-slot-id="${slotId}"]`);
+      if (card) selectedCards.push({ type, card, slotId });
+    }
+  });
+  
+  // No need to check if fewer than 2 slots selected
+  if (selectedCards.length < 2) return;
+  
+  // Check each pair of slots for conflicts
+  for (let i = 0; i < selectedCards.length; i++) {
+    for (let j = i + 1; j < selectedCards.length; j++) {
+      const slotA = selectedCards[i];
+      const slotB = selectedCards[j];
+      
+      // Skip if not on the same day
+      const dayA = slotA.card.querySelector('.time-slot-day').textContent;
+      const dayB = slotB.card.querySelector('.time-slot-day').textContent;
+      if (dayA !== dayB) continue;
+      
+      // Get time ranges
+      const timeA = slotA.card.querySelector('.time-slot-time').textContent;
+      const timeB = slotB.card.querySelector('.time-slot-time').textContent;
+      
+      // Check if they potentially overlap (simple text comparison, could be improved)
+      if (hasTimeOverlap(timeA, timeB)) {
+        // Conflict found, mark both cards
+        slotA.card.classList.add('conflict');
+        slotB.card.classList.add('conflict');
+        
+        console.warn(`Time conflict detected between ${slotA.type} (${slotA.slotId}) and ${slotB.type} (${slotB.slotId})`);
+      }
+    }
+  }
+}
+
+// Helper function to check if two time ranges overlap
+function hasTimeOverlap(timeRangeA, timeRangeB) {
+  // Parse time ranges like "9:00 AM - 10:30 AM"
+  const [startA, endA] = timeRangeA.split(' - ').map(t => parseTimeString(t.trim()));
+  const [startB, endB] = timeRangeB.split(' - ').map(t => parseTimeString(t.trim()));
+  
+  // Check for overlap
+  return (startA <= endB && endA >= startB);
+}
+
+// Format time from HH:MM:SS to HH:MM AM/PM
+function formatTime(timeString) {
+  if (!timeString) return '';
+  
+  // Extract hours and minutes
+  const timeParts = timeString.split(':');
+  let hours = parseInt(timeParts[0]);
+  const minutes = parseInt(timeParts[1]);
+  
+  // Convert to 12-hour format
+  const period = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  
+  // Format with leading zeros for minutes
+  return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
+}
+
+// Parse time string like "9:00 AM" to minutes since midnight
+function parseTimeString(timeStr) {
+  // Extract components
+  const [timePart, ampm] = timeStr.split(' ');
+  let [hours, minutes] = timePart.split(':').map(Number);
+  
+  // Adjust for PM
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  
+  // Convert to minutes since midnight
+  return hours * 60 + minutes;
+}
+
+// Fetch existing time slot selections for the student and course
+async function fetchExistingTimeSlots(courseId) {
+  try {
+    // Get schedule data from the student's overall schedule
+    const response = await fetch(`${baseUrl}/schedule/${studentId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+    });
+    
+    if (!response.ok) {
+      // It's okay if there's no schedule yet
+      console.log(`No existing schedule found for student ${studentId}, status: ${response.status}`);
+      return;
+    }
+    
+    const scheduleData = await response.json();
+    console.log("Full schedule data:", scheduleData);
+    
+    // Find the course we're looking for in the schedule
+    const courseSchedule = scheduleData.schedule?.find(item => item.course_id === courseId);
+    
+    if (courseSchedule && courseSchedule.slots && courseSchedule.slots.length > 0) {
+      console.log("Found existing schedule for course:", courseSchedule);
+      
+      // Reset selected time slots before setting new ones
+      selectedTimeSlots = {
+        lecture: null,
+        lab: null,
+        tutorial: null
+      };
+      
+      // Process each slot by its type
+      courseSchedule.slots.forEach(slot => {
+        if (slot.type.toLowerCase() === 'lecture') {
+          selectedTimeSlots.lecture = slot.slot_id;
+          highlightSelectedTimeSlot("lecture", slot.slot_id);
+        } else if (slot.type.toLowerCase() === 'lab') {
+          selectedTimeSlots.lab = slot.slot_id;
+          highlightSelectedTimeSlot("lab", slot.slot_id);
+        } else if (slot.type.toLowerCase() === 'tutorial') {
+          selectedTimeSlots.tutorial = slot.slot_id;
+          highlightSelectedTimeSlot("tutorial", slot.slot_id);
+        }
+      });
+      
+      // Update selected summary and check for conflicts
+      updateSelectedSummary();
+      checkTimeSlotConflicts();
+    } else {
+      console.log("No existing schedule found for this course");
+    }
+  } catch (error) {
+    console.error("Error fetching existing time slots:", error);
+    // Non-critical error, we can continue without existing selections
+  }
+}
+
+// Setup tab navigation in time slot modal
+function setupTabNavigation() {
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabPanes = document.querySelectorAll('.tab-pane');
+  
+  // Initialize first tab as active if not already
+  if (!document.querySelector('.tab-btn.active')) {
+    tabButtons[0]?.classList.add('active');
+    tabPanes[0]?.classList.add('active');
+  }
+  
+  tabButtons.forEach((button, index) => {
+    // Remove any existing listeners to prevent duplicates
+    const newButton = button.cloneNode(true);
+    button.parentNode.replaceChild(newButton, button);
+    
+    // Add click handler
+    newButton.addEventListener('click', () => {
+      activateTab(newButton.dataset.tab);
+    });
+    
+    // Add keyboard accessibility
+    newButton.addEventListener('keydown', (e) => {
+      // Enter or Space activates the tab
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        activateTab(newButton.dataset.tab);
+      }
+      
+      // Arrow keys for navigation between tabs
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIndex = (index + 1) % tabButtons.length;
+        tabButtons[nextIndex].focus();
+      }
+      
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIndex = (index - 1 + tabButtons.length) % tabButtons.length;
+        tabButtons[prevIndex].focus();
+      }
+    });
+    
+    // Make tabs focusable
+    newButton.setAttribute('tabindex', '0');
+    newButton.setAttribute('role', 'tab');
+    newButton.setAttribute('aria-selected', newButton.classList.contains('active') ? 'true' : 'false');
+    newButton.setAttribute('aria-controls', newButton.dataset.tab);
+  });
+  
+  // Add ARIA attributes to tab content
+  tabPanes.forEach(pane => {
+    pane.setAttribute('role', 'tabpanel');
+    pane.setAttribute('aria-labelledby', 'tab-' + pane.id);
+  });
+  
+  // Add keyboard handler for Escape key to close modal
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeModal();
+    }
+  });
+}
+
+// Helper function to activate a tab
+function activateTab(tabId) {
+  console.log(`Activating tab: ${tabId}`);
+  
+  // Remember current scroll position
+  const scrollPosition = document.querySelector('.modal-body').scrollTop;
+  
+  // Remove active class from all buttons and panes
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+    btn.setAttribute('aria-selected', 'false');
+  });
+  document.querySelectorAll('.tab-pane').forEach(pane => {
+    pane.classList.remove('active');
+  });
+  
+  // Add active class to clicked button and corresponding pane
+  const activeButton = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+  const activePane = document.getElementById(tabId);
+  
+  if (activeButton && activePane) {
+    activeButton.classList.add('active');
+    activeButton.setAttribute('aria-selected', 'true');
+    activePane.classList.add('active');
+    
+    // If there are no time slots in this tab, ensure we show a message
+    if (activePane.innerHTML.trim() === '') {
+      activePane.innerHTML = '<div class="no-slots-message">No time slots available</div>';
+    }
+    
+    // Maintain scroll position
+    setTimeout(() => {
+      document.querySelector('.modal-body').scrollTop = scrollPosition;
+    }, 10);
+  }
+}
+
 function closeModal() {
   const modal = document.getElementById("timeSlotModal");
   modal.style.display = "none";
   currentCourseId = null;
-}
-
-// Initialize the page
-async function init() {
-  performanceMetrics.startTimer('init');
-  try {
-    // Show loading indicator
-    if (courseGrid) {
-      courseGrid.innerHTML = '<div class="loading-indicator">Loading your courses...</div>';
-    }
-    
-    // First try to get student info to validate the student ID
-    const studentInfo = await fetchStudentInfo();
-    
-    // Only proceed if we have valid student info
-    if (!studentInfo) {
-      console.error("Could not fetch student information, cannot proceed");
-      if (courseGrid) {
-        courseGrid.innerHTML = '<div class="error-message">Failed to load student information. Please try logging in again.</div>';
-      }
-      return;
-    }
-    
-    // Fetch registration status
-    await fetchRegistrationStatus();
-    
-    // Now fetch enrollments using the validated student ID
-    const enrollments = await fetchEnrollments();
-    
-    // Only fetch available courses after enrollments are processed
-    if (enrollments && enrollments.length >= 0) {
-      // Force fresh data on initial page load
-      await fetchAvailableCourses(true);
-      displayCourses("all");
-    }
-    
-    // Set up periodic check for registration status changes
-    // Check every 60 seconds (60000 ms)
-    setInterval(async () => {
-      const oldStatus = { 
-        registration_allowed: registrationStatus.registration_allowed,
-        withdrawal_allowed: registrationStatus.withdrawal_allowed
-      };
-      
-      await fetchRegistrationStatus();
-      
-      // If status changed, update the course display
-      if (oldStatus.registration_allowed !== registrationStatus.registration_allowed || 
-          oldStatus.withdrawal_allowed !== registrationStatus.withdrawal_allowed) {
-        console.log("Registration status changed, updating UI");
-        displayCourses(currentFilter);
-      }
-    }, 60000);
-    
-    performanceMetrics.finishLoading();
-  } catch (error) {
-    performanceMetrics.endTimer('init');
-    console.error("Error initializing page:", error);
-    displayErrorMessage("Failed to initialize page. Please try again.");
-  }
-}
-
-// Start initialization when document is ready
-document.addEventListener("DOMContentLoaded", function() {
-  // Initialize the application
-  init();
-});
-
-// Handle window click for modal
-window.onclick = (event) => {
-  const modal = document.getElementById("timeSlotModal")
-  if (event.target == modal) {
-    modal.style.display = "none"
-  }
-}
-
-// Function to clear authentication storage
-function clearAuthStorage() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("refreshToken");
-  localStorage.removeItem("userRole");
-  localStorage.removeItem("userId");
-  localStorage.removeItem("userEmail");
-  localStorage.removeItem("userName");
-}
-
-function logout() {
-  localStorage.clear();
-  window.location.href = "Login.html";
-}
-
-const logoutBtn = document.getElementById('logoutBtn');
-if (logoutBtn) {
-  logoutBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    logout();
-  });
 }
 

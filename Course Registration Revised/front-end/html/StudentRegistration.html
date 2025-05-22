@@ -87,23 +87,61 @@
     </main>
   </div>
 
-  <!-- Time Slot Modal for User with Tab Navigation -->
+  <!-- Time Slot Modal - Simplified Version -->
   <div id="timeSlotModal" class="modal">
     <div class="modal-content">
-      <span class="close" onclick="closeModal()">&times;</span>
-      <h2>Select Time Slot for Course <span id="courseCodeDisplay"></span></h2>
-      <div class="tab-nav">
-        <button class="tab-btn active" data-tab="lecture">Lecture</button>
-        <button class="tab-btn" data-tab="lab">Lab</button>
-        <button class="tab-btn" data-tab="tutorial">Tutorial</button>
+      <div class="modal-header">
+        <h2>Select Time Slots for <span id="courseCodeDisplay"></span></h2>
+        <span class="close" onclick="closeModal()">&times;</span>
       </div>
-      <div class="tab-content">
-        <div class="tab-pane active" id="lecture"></div>
-        <div class="tab-pane" id="lab"></div>
-        <div class="tab-pane" id="tutorial"></div>
+      
+      <div class="modal-body">
+        <!-- Course Info Summary -->
+        <div class="course-summary" id="courseSummary"></div>
+        
+        <!-- Tabs for each type of slot -->
+        <div class="tab-container">
+          <div class="tab-nav">
+            <button class="tab-btn active" data-tab="lecture">
+              <i class="bi bi-people"></i> Lecture
+              <span class="tab-badge" id="lectureBadge">0</span>
+            </button>
+            <button class="tab-btn" data-tab="lab">
+              <i class="bi bi-laptop"></i> Lab
+              <span class="tab-badge" id="labBadge">0</span>
+            </button>
+            <button class="tab-btn" data-tab="tutorial">
+              <i class="bi bi-person-workspace"></i> Tutorial
+              <span class="tab-badge" id="tutorialBadge">0</span>
+            </button>
+          </div>
+          
+          <div class="tab-content">
+            <div class="tab-pane active" id="lecture">
+              <div class="loading-indicator">Loading lecture time slots...</div>
+            </div>
+            <div class="tab-pane" id="lab">
+              <div class="loading-indicator">Loading lab time slots...</div>
+            </div>
+            <div class="tab-pane" id="tutorial">
+              <div class="loading-indicator">Loading tutorial time slots...</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Selected Time Slots Summary -->
+        <div class="selected-summary">
+          <h3>Selected Time Slots</h3>
+          <div id="selectedSummary" class="selected-slots-list">
+            <p class="no-selection-message">No time slots selected yet</p>
+          </div>
+        </div>
       </div>
-      <br>
-      <button type="submit" class="btn-submit">Submit Selection</button>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-submit" id="saveSlotBtn">Save Selections & Register</button>
+      </div>
     </div>
   </div>
 

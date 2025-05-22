@@ -74,245 +74,131 @@
             </div>
 
             <!-- Weekly Schedule Table -->
-<div class="schedule-container">
-    <table class="schedule-table">
-        <thead>
-            <tr>
-                <th class="time-header">Time</th>
-                <th>Sunday</th>
-                <th>Monday</th>
-                <th>Tuesday</th>
-                <th>Wednesday</th>
-                <th>Thursday</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- 8:00 AM Row -->
-            <tr>
-                <td class="time-cell">8:00 AM</td>
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Mathematics</h3>
-                        <p>MTH101 | Tutorial</p>
-                        <p>Dr. Samira Fawzy</p>
-                        <p>Room 210</p>
-                    </div>
-                </td>
-                <td class="course-slot lecture" rowspan="2">
-                    <div class="course-details">
-                        <h3>Data Structures</h3>
-                        <p>CEF111 | Lecture</p>
-                        <p>Dr. Hesham Sakr</p>
-                        <p>Room 305</p>
-                    </div>
-                </td>
-                <td class="course-slot lab">
-                    <div class="course-details">
-                        <h3>Physics Lab</h3>
-                        <p>PHY202 | Lab</p>
-                        <p>Dr. Nadia Ashraf</p>
-                        <p>Lab 301</p>
-                    </div>
-                </td>
-                <td></td>
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Algorithms</h3>
-                        <p>CEF112 | Lecture</p>
-                        <p>Dr. Omar Khaled</p>
-                        <p>Room 308</p>
-                    </div>
-                </td>
-            </tr>
-            
-            <!-- 9:00 AM Row -->
-            <tr>
-                <td class="time-cell">9:00 AM</td>
-                <td></td>
-                <!-- Data Structures spans from above -->
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Web Development</h3>
-                        <p>CET201 | Tutorial</p>
-                        <p>TA: Ali Mahmoud</p>
-                        <p>Room 105</p>
-                    </div>
-                </td>
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Operating Systems</h3>
-                        <p>CEN301 | Lecture</p>
-                        <p>Dr. Hala Salah</p>
-                        <p>Room 402</p>
-                    </div>
-                </td>
-                <td class="course-slot lab">
-                    <div class="course-details">
-                        <h3>Programming</h3>
-                        <p>CET123 | Lab</p>
-                        <p>Dr. Ayman Taha</p>
-                        <p>Lab 201</p>
-                    </div>
-                </td>
-            </tr>
-            
-            <!-- 10:00 AM Row -->
-            <tr>
-                <td class="time-cell">10:00 AM</td>
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Database Management</h3>
-                        <p>CAT11 | Tutorial</p>
-                        <p>Dr. Alyaa</p>
-                        <p>Room 102</p>
-                    </div>
-                </td>
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Computer Networks</h3>
-                        <p>CEN303 | Lecture</p>
-                        <p>Dr. Karim Adel</p>
-                        <p>Room 310</p>
-                    </div>
-                </td>
-                <td class="course-slot lecture" rowspan="2">
-                    <div class="course-details">
-                        <h3>Software Engineering</h3>
-                        <p>CEN202 | Lecture</p>
-                        <p>Dr. Mohamed Ali</p>
-                        <p>Room 401</p>
-                    </div>
-                </td>
-                <td class="course-slot lab">
-                    <div class="course-details">
-                        <h3>AI Fundamentals</h3>
-                        <p>CEF201 | Lab</p>
-                        <p>Dr. Rania Hassan</p>
-                        <p>Lab 202</p>
-                    </div>
-                </td>
-                <td></td>
-            </tr>
-            
-            <!-- 11:00 AM Row -->
-            <tr>
-                <td class="time-cell">11:00 AM</td>
-                <td></td>
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Mobile Development</h3>
-                        <p>CET205 | Tutorial</p>
-                        <p>TA: Amr Hussein</p>
-                        <p>Room 107</p>
-                    </div>
-                </td>
-                <!-- Software Engineering spans from above -->
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Database Management</h3>
-                        <p>CAT11 | Lecture</p>
-                        <p>Dr. Alyaa</p>
-                        <p>Room 203</p>
-                    </div>
-                </td>
-                <td></td>
-            </tr>
-            
-            <!-- 12:00 PM Row -->
-            <tr>
-                <td class="time-cell">12:00 PM</td>
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Cybersecurity</h3>
-                        <p>CEN305 | Lecture</p>
-                        <p>Dr. Nourhan Said</p>
-                        <p>Room 409</p>
-                    </div>
-                </td>
-                <td></td>
-                <td class="course-slot lab" rowspan="2">
-                    <div class="course-details">
-                        <h3>Data Structures</h3>
-                        <p>CEF111 | Lab</p>
-                        <p>Dr. Ahmed Hassan</p>
-                        <p>Lab 101</p>
-                    </div>
-                </td>
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Cloud Computing</h3>
-                        <p>CET210 | Tutorial</p>
-                        <p>TA: Mona Samy</p>
-                        <p>Room 108</p>
-                    </div>
-                </td>
-                <td></td>
-            </tr>
-            
-            <!-- 1:00 PM Row -->
-            <tr>
-                <td class="time-cell">1:00 PM</td>
-                <td></td>
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Programming</h3>
-                        <p>CET123 | Lecture</p>
-                        <p>Dr. Ayman Taha</p>
-                        <p>Room 205</p>
-                    </div>
-                </td>
-                <!-- Data Structures Lab spans from above -->
-                <td></td>
-                <td class="course-slot lab">
-                    <div class="course-details">
-                        <h3>IoT Systems</h3>
-                        <p>CET215 | Lab</p>
-                        <p>Dr. Youssef Ali</p>
-                        <p>Lab 305</p>
-                    </div>
-                </td>
-            </tr>
-            
-            <!-- 2:00 PM Row -->
-            <tr>
-                <td class="time-cell">2:00 PM</td>
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Machine Learning</h3>
-                        <p>CEF220 | Tutorial</p>
-                        <p>TA: Omar Sherif</p>
-                        <p>Room 110</p>
-                    </div>
-                </td>
-                <td class="course-slot lecture">
-                    <div class="course-details">
-                        <h3>Distributed Systems</h3>
-                        <p>CEN410 | Lecture</p>
-                        <p>Dr. Hossam ElDin</p>
-                        <p>Room 510</p>
-                    </div>
-                </td>
-                <td></td>
-                <td class="course-slot tutorial">
-                    <div class="course-details">
-                        <h3>Software Engineering</h3>
-                        <p>CEN202 | Tutorial</p>
-                        <p>TA: Sara Ahmed</p>
-                        <p>Room 103</p>
-                    </div>
-                </td>
-                <td class="course-slot lab">
-                    <div class="course-details">
-                        <h3>Robotics</h3>
-                        <p>CET320 | Lab</p>
-                        <p>Dr. Ahmed Farag</p>
-                        <p>Lab 401</p>
-                    </div>
-                </td>
-            </tr>
-        </tbody>
-    </table>
-</div>
+            <div class="schedule-container">
+                <table class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th class="time-header">Time</th>
+                            <th>Sunday</th>
+                            <th>Monday</th>
+                            <th>Tuesday</th>
+                            <th>Wednesday</th>
+                            <th>Thursday</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 7:00 AM Row -->
+                        <tr>
+                            <td class="time-cell">7:00 AM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 8:00 AM Row -->
+                        <tr>
+                            <td class="time-cell">8:00 AM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 9:00 AM Row -->
+                        <tr>
+                            <td class="time-cell">9:00 AM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 10:00 AM Row -->
+                        <tr>
+                            <td class="time-cell">10:00 AM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 11:00 AM Row -->
+                        <tr>
+                            <td class="time-cell">11:00 AM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 12:00 PM Row -->
+                        <tr>
+                            <td class="time-cell">12:00 PM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 1:00 PM Row -->
+                        <tr>
+                            <td class="time-cell">1:00 PM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 2:00 PM Row -->
+                        <tr>
+                            <td class="time-cell">2:00 PM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 3:00 PM Row -->
+                        <tr>
+                            <td class="time-cell">3:00 PM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 4:00 PM Row -->
+                        <tr>
+                            <td class="time-cell">4:00 PM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        
+                        <!-- 5:00 PM Row -->
+                        <tr>
+                            <td class="time-cell">5:00 PM</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </main>
     </div>
 
